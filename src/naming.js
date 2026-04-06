@@ -347,3 +347,36 @@ export function nameAgents(graph, myth, agents, rng) {
     agent.name = name
   }
 }
+
+/**
+ * Generate a phoneme-driven name for a region based on its concept cluster.
+ * No world-signature blending -- regions should sound distinct from each other.
+ * @param {ConceptGraph} graph
+ * @param {string[]} concepts - the region's concept cluster
+ * @param {() => number} rng
+ * @param {Set<string>} [usedNames] - names to avoid duplicating
+ * @returns {string}
+ */
+export function nameRegion(graph, concepts, rng, usedNames = new Set()) {
+  // Resolve each concept to a sound palette key
+  const keys = concepts.map(c => resolveSoundQuality(graph, c))
+  const uniqueKeys = [...new Set(keys)]
+
+  // Weight by frequency (primary concept weighted higher)
+  const weights = uniqueKeys.map((k, i) => {
+    const count = keys.filter(x => x === k).length
+    return count * (i === 0 ? 2 : 1)
+  })
+
+  // Regions get 2-3 syllable names
+  const syllableCount = rng() < 0.5 ? 2 : 3
+
+  let name = ''
+  for (let tries = 0; tries < 5; tries++) {
+    name = generateName(rng, uniqueKeys, weights, syllableCount)
+    if (!usedNames.has(name.toLowerCase())) break
+  }
+
+  usedNames.add(name.toLowerCase())
+  return name
+}

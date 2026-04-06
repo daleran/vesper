@@ -46,7 +46,7 @@ export const worldBirth = {
     // Where the birth happened (tiered fallback)
     const birthplace = findBirthplace(graph, rng, [parent, worldForce, ...enemies])
 
-    const wound = `${parent} is still searching`
+    const wound = `${parent}'s endless search`
 
     return {
       seed: '', recipe: '',

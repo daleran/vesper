@@ -1,8 +1,57 @@
 /**
  * @import { CreationMyth, BeatRoles } from './recipes/index.js'
  * @import { ConceptGraph, Edge } from './concepts.js'
+ * @import { Pantheon } from './pantheon.js'
  */
 import { mulberry32, hashSeed, pick } from './utils.js'
+
+// ── Name substitution ───────────────────────────────────────────────────────
+
+/**
+ * Role keys that represent entities (agents/deities) rather than things/places.
+ * Only these roles get deity name substitution.
+ */
+const AGENT_ROLE_KEYS = new Set([
+  'actor', 'slain', 'parent', 'child', 'owner', 'partner',
+  'splitter', 'agent1', 'agent2', 'fragment1', 'fragment2',
+  'dead', 'unity', 'source',
+])
+
+/**
+ * Build a map from concept name → agent name from the pantheon.
+ * Uses each agent's primary domain (first in domains array).
+ * @param {Pantheon} pantheon
+ * @returns {Map<string, string>}
+ */
+function buildNameMap(pantheon) {
+  const map = new Map()
+  for (const agent of pantheon.agents) {
+    const primary = agent.domains[0]
+    if (primary && !map.has(primary)) {
+      map.set(primary, agent.name)
+    }
+  }
+  return map
+}
+
+/**
+ * Create a copy of beat roles with deity names substituted for agent-like roles.
+ * @param {BeatRoles} roles
+ * @param {Map<string, string>} nameMap
+ * @returns {BeatRoles}
+ */
+function substituteNames(roles, nameMap) {
+  /** @type {BeatRoles} */
+  const named = {}
+  for (const [key, concept] of Object.entries(roles)) {
+    if (AGENT_ROLE_KEYS.has(key) && nameMap.has(concept)) {
+      named[key] = nameMap.get(concept) ?? concept
+    } else {
+      named[key] = concept
+    }
+  }
+  return named
+}
 
 // ── Sensory helpers ─────────────────────────────────────────────────────────
 
@@ -115,6 +164,7 @@ const VOID_ELABORATORS = [
   // Rhymes: "not unlike X — the same weight, the same silence"
   (concept, graph, rng) => {
     const rhymes = getEdgesOf(graph, concept, 'rhymes')
+      .filter(r => r !== concept && r !== 'void')
     if (rhymes.length === 0) return null
     const r = pick(rng, rhymes)
     const s = getSensory(graph, r)
@@ -805,14 +855,25 @@ const FLAW_TEMPLATES = [
 /**
  * Render a creation myth as a single narrative prose paragraph.
  * Deterministic: same seed always produces the same text.
+ * When a pantheon is provided, deity names are substituted into agent-like roles
+ * so the prose references named gods rather than raw concept names.
  *
  * @param {CreationMyth} myth
  * @param {ConceptGraph} graph
+ * @param {Pantheon} [pantheon]
  * @returns {{ prose: string, concepts: string[] }}
  */
-export function renderProse(myth, graph) {
+export function renderProse(myth, graph, pantheon) {
   const rng = mulberry32(hashSeed(myth.seed))
 
+  // Build name map from pantheon (if provided) and substitute into roles
+  const nameMap = pantheon ? buildNameMap(pantheon) : new Map()
+  const beforeRoles = pantheon ? substituteNames(myth.before.roles, nameMap) : myth.before.roles
+  const actRoles = pantheon ? substituteNames(myth.act.roles, nameMap) : myth.act.roles
+  const costRoles = pantheon ? substituteNames(myth.cost.roles, nameMap) : myth.cost.roles
+  const flawRoles = pantheon ? substituteNames(myth.flaw.roles, nameMap) : myth.flaw.roles
+
+  // Sensory maps still use original concept names (not deity names)
   const beforeSensory = buildSensoryMap(graph, myth.before.roles)
   const actSensory = buildSensoryMap(graph, myth.act.roles)
   const costSensory = buildSensoryMap(graph, myth.cost.roles)
@@ -824,20 +885,20 @@ export function renderProse(myth, graph) {
   // Collect concepts discovered during elaboration
   const discovered = /** @type {string[]} */ ([])
 
-  // Primary concept for each beat (used for elaboration)
+  // Primary concept for each beat (used for elaboration — always use original concepts)
   const voidConcept = myth.before.roles.void ?? myth.before.concepts[0] ?? ''
   const actConcept = myth.act.roles.product ?? myth.act.roles.actor ?? myth.act.concepts[0] ?? ''
   const costConcept = myth.cost.roles.sacrificed ?? myth.cost.concepts[0] ?? ''
   const flawConcept = myth.flaw.roles.wound ?? myth.flaw.concepts[0] ?? ''
 
   const parts = [
-    pick(rng, VOID_TEMPLATES)(myth.before.roles, beforeSensory)
+    pick(rng, VOID_TEMPLATES)(beforeRoles, beforeSensory)
       + ' ' + elaborate(VOID_ELABORATORS, voidConcept, graph, rng, discovered),
-    pick(rng, actPool)(myth.act.roles, actSensory)
+    pick(rng, actPool)(actRoles, actSensory)
       + ' ' + elaborate(ACT_ELABORATORS, actConcept, graph, rng, discovered),
-    pick(rng, COST_TEMPLATES)(myth.cost.roles, costSensory)
+    pick(rng, COST_TEMPLATES)(costRoles, costSensory)
       + ' ' + elaborate(COST_ELABORATORS, costConcept, graph, rng, discovered),
-    pick(rng, FLAW_TEMPLATES)(myth.flaw.roles, flawSensory)
+    pick(rng, FLAW_TEMPLATES)(flawRoles, flawSensory)
       + ' ' + elaborate(FLAW_ELABORATORS, flawConcept, graph, rng, discovered),
   ]
 

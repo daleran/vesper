@@ -200,59 +200,27 @@ Small tweaks and bug fixes. Add when found, remove when resolved.
 
 ---
 
-## Layer 3 — Mythic History (planned, not started)
+## Layer 3 — Mythic History ✓
 
-> Build after Layer 2 agents & pantheon.
-> This is the bridge between "the world has a creation myth" and
-> "the world has regions that feel different from each other."
+### Phase 20–27 — History Generator ✓
 
-The creation myth answers how the world began. Mythic history answers why
-different parts of it feel different. 3–5 events per world, each inheriting
-concepts from the creation myth and previous events, each tagging a spatial
-region with its own concept cluster. Concepts accumulate — Event 1's
-consequences become Event 2's preconditions.
-
-**Generation pipeline:**
-
-```
-Creation Myth (void → act → cost → flaw)
-    ↓ inherits concepts
-Mythic Event 1 — a consequence of the flaw
-    ↓ adds new concepts and locations
-Mythic Event 2 — an attempt to fix or exploit Event 1
-    ↓ compounds the problem
-Mythic Event 3 — a catastrophe, exodus, or transformation
-    ↓ scars new regions
-Mythic Event 4 — the recent past, still echoing in living memory
-    ↓ defines present-tense tensions
-The World the Player Enters
-```
-
-**Event structure:** Situation → Action → Consequence → Legacy
-
-- Situation: what tension inherited from previous events made this inevitable?
-- Action: which agents acted, and what did they do? (war, discovery, hubris, sacrifice, migration, invention)
-- Consequence: what changed physically? A region scarred, a people scattered. Agent states updated (killed, exiled, transformed).
-- Legacy: what does this event mean to cultures now? Who tells it, and how differently?
-
-Events use Layer 2's pantheon as their cast. Agents gain new relationships,
-change state, or spawn new agents through events. A god diminished in Event 1
-might return as a corrupted demon in Event 3.
-
-**Event archetypes:**
-
-- War — two forces clash; a region is scarred, a people displaced
-- Hubris — someone reaches beyond their station; always ends in ironic catastrophe
-- Exodus — a people flee; they transform the new region and haunt the old one
-- Discovery — something buried is found; changes the power balance
-- Sacrifice — someone gives up something essential to hold the world together
-- Corruption — something good is slowly perverted
-- Sundering — a unity breaks; one culture becomes two with incompatible memories
-- Return — something from the creation myth resurfaces; the flaw manifests physically
-
-Each event tags 1–2 regions with concept clusters. After 3–5 events, the world has
-a creation myth defining its baseline character and regionally distinct clusters
-defining local variation.
+- [x] `src/history.js` — generateHistory(graph, myth, pantheon, rng) → MythicHistory
+- [x] `src/historyArchetypes.js` — ARCHETYPES registry: 8 event archetype functions
+- [x] `src/historyProse.js` — renderEventProse(event, graph, rng) → prose for mythic events
+- [x] Separate RNG stream (seed + '-history') isolates from myth and pantheon
+- [x] 3–5 events per world, concept inheritance between events
+- [x] 8 archetypes: war, hubris, exodus, discovery, sacrifice, corruption, sundering, return
+- [x] Position-weighted archetype selection for narrative arc (no repeats)
+- [x] Agent mutation: state changes, type changes, relationship additions, new agent spawning
+- [x] Region creation: 1–2 regions per event, 4–8 total, expanded via graph walks
+- [x] Region naming: nameRegion() in naming.js, phoneme-driven from concept clusters
+- [x] Spawned agent naming via existing nameAgents() system
+- [x] Event prose: 4-beat template pools (situation/action/consequence/legacy) with sensory elaborators
+- [x] UI: history timeline with archetype badges, agent state-change annotations, region tags
+- [x] UI: region cards with name, concept cluster, tagged-by annotations
+- [x] Structure panel includes history events and regions
+- [x] Batch generation includes history
+- [x] Verify: 40 seeds × all recipes produce valid histories, no crashes
 
 ---
 

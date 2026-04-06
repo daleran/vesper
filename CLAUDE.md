@@ -13,7 +13,7 @@ Given a seed and a weirdness dial, it generates a creation myth rendered as thre
 fragments (priestly hymn, oral tradition, heretical whisper). The same seed always
 produces the same myth. Higher weirdness produces stranger, more distant connections.
 
-The generation cascade: **Concept Graph → Graph Walk → Myth Structure → Prose**
+The generation cascade: **Concept Graph → Graph Walk → Myth Structure → Pantheon → History → Prose**
 
 Future layers will build on top of the myth: geography, ecology, and culture emerging
 from the story rather than the other way around.
@@ -23,7 +23,7 @@ No canvas. No frameworks. No production dependencies.
 Deployed to: **Cloudflare Pages**.
 
 ### Current Layer
-Layer 1: Creation myth generator — concept graph driven, three voices, text output.
+Layer 3: Mythic history — event chains bridge creation myth to regional geography.
 
 ---
 
@@ -98,7 +98,10 @@ src/
   prose.js       — renderProse(myth, graph) — assembles prose from beat roles + sensory edges.
   pantheon.js    — generatePantheon(graph, myth, rng) → Pantheon. Agent pipeline.
   pantheonShapes.js — Per-recipe shape functions: SHAPES registry keyed by recipe name.
-  naming.js      — Phoneme-driven naming: palettes, syllable gen, nameAgents().
+  naming.js      — Phoneme-driven naming: palettes, syllable gen, nameAgents(), nameRegion().
+  history.js     — generateHistory(graph, myth, pantheon, rng) → MythicHistory. Event chain.
+  historyArchetypes.js — ARCHETYPES registry: 8 event archetype functions.
+  historyProse.js — renderEventProse(event, graph, rng) → prose for mythic events.
   query.js       — Chainable concept graph query builder. query(graph).where().or().get().
   queryHelpers.js — Reusable semantic concept finders: findTool, findVoid, findArena, etc.
   ui.js          — buildUI() — DOM controls (seed, generate) and output display.
@@ -217,6 +220,15 @@ sound, texture, shape, evokes) from the concept graph to describe concepts in
 language shaped by their nature. A void of sleep is described differently than a
 void of pit because each has different sensory edges.
 
+### Named Prose
+`renderProse(myth, graph, pantheon?)` accepts an optional pantheon. When provided,
+deity names are substituted into agent-like roles (actor, slain, parent, child,
+owner, partner, splitter, agent1, agent2, fragment1, fragment2, dead, unity, source)
+before templates render. Thing/place roles (void, tool, target, product, weapon,
+place, treasure, material, word, law, wound, sacrificed) keep their raw concept
+names. Sensory lookups and elaboration always use original concept names so graph
+edges resolve correctly. The pipeline order is: myth → pantheon → prose.
+
 ### Pantheon System
 `generatePantheon(graph, myth, rng)` returns `{ agents: Agent[], tensions: string[] }`.
 Uses a separate RNG stream (`seed + '-pantheon'`) to isolate from myth generation.
@@ -282,6 +294,50 @@ All names in a world share a language feel.
 
 **Agent type → syllable count:** god 1–2, demi-god 2, spirit 2–3, demon 2–3,
 ancestor 2, herald 2. Monosyllabic gods feel ancient.
+
+**Region naming:** `nameRegion(graph, concepts, rng)` generates 2–3 syllable place
+names driven purely by a region's concept cluster sound profile. No world-signature
+blending — regions should sound distinct from each other.
+
+### Mythic History System
+`generateHistory(graph, myth, pantheon, rng)` returns `MythicHistory`.
+Uses a separate RNG stream (`seed + '-history'`) to isolate from myth and pantheon.
+
+**Pipeline:** Clone agents → Pick archetype sequence → Event loop (5–8 events) →
+Name regions → Name spawned agents → Render prose.
+
+**MythicEvent structure:** Four beats: situation → action → consequence → legacy.
+Each beat has `roles: BeatRoles` and `concepts: string[]`, paralleling the creation
+myth's beat structure. Events also carry `agentChanges` (mutations) and `regionTags`.
+
+**8 event archetypes** in `historyArchetypes.js`, keyed by name:
+- **War** — two forces clash; loser killed/exiled, region scarred
+- **Hubris** — overreach leads to ironic catastrophe; actor imprisoned/transformed
+- **Exodus** — displacement; old region gains desolation, new region gains diaspora
+- **Discovery** — something buried found; power balance shifts
+- **Sacrifice** — essential thing given up to hold the world together
+- **Corruption** — something good perverted; agent type may change (god→demon)
+- **Sundering** — unity breaks; spawns new agent, creates two regions
+- **Return** — creation myth's flaw resurfaces physically; dormant agents reawaken
+
+**Archetype selection:** Position-weighted: event 0 favors consequence-of-flaw archetypes,
+later events favor catastrophe/echoing archetypes. No repeats within a history.
+
+**Concept inheritance:** Each event inherits all concepts from the creation myth plus
+all previous events. The concept pool grows event by event, creating causal chains.
+
+**Agent mutation:** Events change agent states (killed, exiled, transformed, etc.),
+change types (god→demon), add relationships, and spawn new agents. Changes are
+tracked per-event in `agentChanges` for display. Agents are deep-cloned from the
+original pantheon; originals are never mutated.
+
+**Region creation:** Each event creates 1–2 regions from consequence concepts,
+expanded 1-hop via evokes/rhymes to 6–10 concept clusters. Corruption and Return
+also tag existing regions. Target: 6–12 regions after 5–8 events.
+
+**Event prose:** `renderEventProse(event, graph, rng)` in `historyProse.js`. Template
+pools for each beat (situation/action/consequence/legacy) with archetype-keyed action
+sub-pools. Sensory elaborators add graph-driven detail. Same pattern as `prose.js`.
 
 ---
 

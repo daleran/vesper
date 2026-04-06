@@ -2,6 +2,7 @@ import { TRIPLES, buildGraph } from './concepts.js'
 import { generateMyth } from './myth.js'
 import { renderProse } from './prose.js'
 import { generatePantheon } from './pantheon.js'
+import { generateHistory } from './history.js'
 import { buildControls, showEmptyState, displayMyth, displayMythBatch } from './ui.js'
 import { buildExplorer } from './explorer.js'
 import { mulberry32, hashSeed, pick } from './utils.js'
@@ -24,6 +25,7 @@ const explorer = /** @type {HTMLElement} */ (document.getElementById('explorer')
  * @param {'generate'|'concepts'} tab
  */
 function switchTab(tab) {
+  controls.hidden = tab !== 'generate'
   output.hidden = tab !== 'generate'
   explorer.hidden = tab !== 'concepts'
   for (const btn of tabsEl.querySelectorAll('.tab-btn')) {
@@ -48,9 +50,10 @@ switchTab('generate')
 // ── Generate tab ──
 buildControls(controls, ({ seed }) => {
   const myth = generateMyth(graph, seed)
-  const { prose } = renderProse(myth, graph)
   const pantheon = generatePantheon(graph, myth, mulberry32(hashSeed(seed + '-pantheon')))
-  displayMyth(output, prose, myth, pantheon)
+  const history = generateHistory(graph, myth, pantheon, mulberry32(hashSeed(seed + '-history')))
+  const { prose } = renderProse(myth, graph, pantheon)
+  displayMyth(output, prose, myth, pantheon, history)
 }, (count) => {
   // Build recipe schedule: one of each, then random fills for even distribution
   const recipeNames = RECIPES.map(r => r.name)
@@ -70,9 +73,10 @@ buildControls(controls, ({ seed }) => {
   for (let i = 0; i < count; i++) {
     const seed = Math.random().toString(36).slice(2, 10)
     const myth = generateMyth(graph, seed, schedule[i])
-    const { prose } = renderProse(myth, graph)
     const pantheon = generatePantheon(graph, myth, mulberry32(hashSeed(seed + '-pantheon')))
-    items.push({ prose, myth, pantheon })
+    const history = generateHistory(graph, myth, pantheon, mulberry32(hashSeed(seed + '-history')))
+    const { prose } = renderProse(myth, graph, pantheon)
+    items.push({ prose, myth, pantheon, history })
   }
   displayMythBatch(output, items)
 })

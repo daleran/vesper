@@ -124,7 +124,7 @@ export function generatePantheon(graph, myth, rng) {
  * @param {AgentSeed} s
  * @returns {Agent}
  */
-function buildAgent(s) {
+export function buildAgent(s) {
   const primaryDomain = s.domains[0] ?? 'unknown'
   return {
     name: primaryDomain.charAt(0).toUpperCase() + primaryDomain.slice(1),

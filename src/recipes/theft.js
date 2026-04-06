@@ -42,7 +42,7 @@ export const theft = {
       .exclude(thief, treasure).get().slice(0, 2)
     if (bad.length === 0) bad.push(owner)
 
-    const wound = `${owner} is still searching`
+    const wound = `${owner}'s endless search`
 
     return {
       seed: '', recipe: '',

@@ -1,6 +1,7 @@
 /**
  * @import { CreationMyth } from './recipes/index.js'
  * @import { Pantheon, Agent } from './pantheon.js'
+ * @import { MythicHistory } from './history.js'
  */
 
 /**
@@ -92,21 +93,53 @@ export function showEmptyState(container) {
  * @param {string} prose
  * @param {CreationMyth} myth
  * @param {Pantheon} [pantheon]
+ * @param {MythicHistory} [history]
  */
-export function displayMyth(container, prose, myth, pantheon) {
+export function displayMyth(container, prose, myth, pantheon, history) {
   container.innerHTML = ''
 
   const section = document.createElement('section')
   section.className = 'myth-section'
 
+  const properNouns = collectProperNouns(pantheon, history)
+
+  const heading = document.createElement('h2')
+  heading.className = 'section-heading'
+  heading.textContent = 'creation myth'
+
+  const headerLine = document.createElement('div')
+  headerLine.className = 'event-header'
+
+  const recipeBadge = document.createElement('span')
+  recipeBadge.className = 'badge badge--recipe'
+  recipeBadge.textContent = myth.recipe
+
+  const copyBtn = document.createElement('button')
+  copyBtn.className = 'small'
+  copyBtn.textContent = 'copy'
+  copyBtn.addEventListener('click', () => {
+    const copyText = `[${myth.seed}]\n${prose}\n\n${formatStructure(myth, pantheon, history)}`
+    navigator.clipboard.writeText(copyText).then(() => {
+      copyBtn.textContent = 'copied!'
+      setTimeout(() => { copyBtn.textContent = 'copy' }, 1500)
+    })
+  })
+
+  headerLine.append(recipeBadge, copyBtn)
+
   const text = document.createElement('p')
   text.className = 'myth-text'
-  text.textContent = prose
+  text.innerHTML = highlightProperNouns(prose, properNouns)
 
-  section.appendChild(text)
+  section.append(heading, headerLine, text)
 
   if (pantheon) {
     section.appendChild(renderPantheon(pantheon))
+  }
+
+  if (history && history.events.length > 0) {
+    section.appendChild(renderHistory(history, properNouns))
+    section.appendChild(renderRegions(history))
   }
 
   container.appendChild(section)
@@ -121,7 +154,7 @@ export function displayMyth(container, prose, myth, pantheon) {
 
   const body = document.createElement('div')
   body.className = 'structure-body'
-  body.textContent = formatStructure(myth, pantheon)
+  body.textContent = formatStructure(myth, pantheon, history)
 
   toggle.addEventListener('click', () => {
     const open = body.classList.toggle('open')
@@ -135,7 +168,7 @@ export function displayMyth(container, prose, myth, pantheon) {
 /**
  * Render a batch of myths into the output container.
  * @param {HTMLElement} container
- * @param {{ prose: string, myth: CreationMyth, pantheon?: Pantheon }[]} items
+ * @param {{ prose: string, myth: CreationMyth, pantheon?: Pantheon, history?: MythicHistory }[]} items
  */
 export function displayMythBatch(container, items) {
   container.innerHTML = ''
@@ -175,8 +208,8 @@ export function displayMythBatch(container, items) {
   })
 
   copyAllBtn.addEventListener('click', () => {
-    const parts = items.map(({ prose, myth, pantheon }) =>
-      `[${myth.seed}]\n${prose}\n\n${formatStructure(myth, pantheon)}`
+    const parts = items.map(({ prose, myth, pantheon, history }) =>
+      `[${myth.seed}]\n${prose}\n\n${formatStructure(myth, pantheon, history)}`
     )
     navigator.clipboard.writeText(parts.join('\n\n---\n\n')).then(() => {
       copyAllBtn.textContent = 'copied!'
@@ -187,22 +220,33 @@ export function displayMythBatch(container, items) {
   toolbar.append(expandAllBtn, collapseAllBtn, copyAllBtn)
   container.appendChild(toolbar)
 
-  for (const { prose, myth, pantheon } of items) {
+  for (const { prose, myth, pantheon, history } of items) {
     const card = document.createElement('section')
     card.className = 'myth-section myth-card'
 
     const seedTag = document.createElement('span')
-    seedTag.className = 'myth-seed-tag'
+    seedTag.className = 'badge badge--seed'
     seedTag.textContent = myth.seed
+
+    const recipeBadge = document.createElement('span')
+    recipeBadge.className = 'badge badge--recipe'
+    recipeBadge.textContent = myth.recipe
+
+    const properNouns = collectProperNouns(pantheon, history)
 
     const text = document.createElement('p')
     text.className = 'myth-text'
-    text.textContent = prose
+    text.innerHTML = highlightProperNouns(prose, properNouns)
 
-    card.append(seedTag, text)
+    card.append(seedTag, recipeBadge, text)
 
     if (pantheon) {
       card.appendChild(renderPantheon(pantheon))
+    }
+
+    if (history && history.events.length > 0) {
+      card.appendChild(renderHistory(history, properNouns))
+      card.appendChild(renderRegions(history))
     }
 
     const structureSection = document.createElement('div')
@@ -214,7 +258,7 @@ export function displayMythBatch(container, items) {
 
     const body = document.createElement('div')
     body.className = 'structure-body'
-    body.textContent = formatStructure(myth, pantheon)
+    body.textContent = formatStructure(myth, pantheon, history)
 
     toggle.addEventListener('click', () => {
       const open = body.classList.toggle('open')
@@ -234,10 +278,10 @@ export function displayMythBatch(container, items) {
  */
 function renderPantheon(pantheon) {
   const container = document.createElement('div')
-  container.className = 'pantheon-section'
+  container.className = 'divider-section'
 
   const heading = document.createElement('h3')
-  heading.className = 'pantheon-heading'
+  heading.className = 'section-heading'
   heading.textContent = 'pantheon'
   container.appendChild(heading)
 
@@ -280,7 +324,7 @@ function renderAgent(agent, index, allAgents) {
   title.textContent = agent.title
 
   const typeBadge = document.createElement('span')
-  typeBadge.className = `agent-type agent-type--${agent.type}`
+  typeBadge.className = `badge badge--${agent.type}`
   typeBadge.textContent = agent.type
 
   nameLine.append(name, title, typeBadge)
@@ -304,13 +348,206 @@ function renderAgent(agent, index, allAgents) {
   return el
 }
 
+// ── Proper noun highlighting ──
+
+/**
+ * Collect all proper nouns (agent names, region names) from pantheon and history.
+ * @param {Pantheon} [pantheon]
+ * @param {MythicHistory} [history]
+ * @returns {string[]}
+ */
+function collectProperNouns(pantheon, history) {
+  /** @type {string[]} */
+  const names = []
+  if (pantheon) {
+    for (const agent of pantheon.agents) {
+      if (agent.name) names.push(agent.name)
+    }
+  }
+  if (history) {
+    for (const region of history.regions) {
+      if (region.name) names.push(region.name)
+    }
+    for (const agent of history.spawnedAgents) {
+      if (agent.name) names.push(agent.name)
+    }
+  }
+  // Sort longest first so longer names match before shorter substrings
+  names.sort((a, b) => b.length - a.length)
+  return names
+}
+
+/**
+ * Escape a string for use in a regex.
+ * @param {string} s
+ * @returns {string}
+ */
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Replace proper nouns in text with styled HTML spans.
+ * Returns HTML string safe for innerHTML (text is escaped first).
+ * @param {string} text
+ * @param {string[]} properNouns
+ * @returns {string}
+ */
+function highlightProperNouns(text, properNouns) {
+  if (properNouns.length === 0) return escapeHtml(text)
+  const pattern = new RegExp(`(${properNouns.map(escapeRegex).join('|')})`, 'g')
+  // Split on proper nouns, escape each segment, wrap matches in spans
+  const parts = text.split(pattern)
+  const nounSet = new Set(properNouns)
+  return parts.map(part =>
+    nounSet.has(part)
+      ? `<span class="proper-noun">${escapeHtml(part)}</span>`
+      : escapeHtml(part)
+  ).join('')
+}
+
+/**
+ * Escape HTML special characters.
+ * @param {string} s
+ * @returns {string}
+ */
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+// ── History and Region rendering ──
+
+/**
+ * Render mythic history as a timeline section.
+ * @param {MythicHistory} history
+ * @param {string[]} properNouns
+ * @returns {HTMLElement}
+ */
+function renderHistory(history, properNouns) {
+  const container = document.createElement('div')
+  container.className = 'divider-section'
+
+  const heading = document.createElement('h3')
+  heading.className = 'section-heading'
+  heading.textContent = 'mythic history'
+  container.appendChild(heading)
+
+  for (const event of history.events) {
+    const card = document.createElement('div')
+    card.className = 'event-card'
+
+    const headerLine = document.createElement('div')
+    headerLine.className = 'event-header'
+
+    const badge = document.createElement('span')
+    badge.className = `badge badge--${event.archetype}`
+    badge.textContent = event.archetype
+
+    headerLine.appendChild(badge)
+    card.appendChild(headerLine)
+
+    if (event.prose) {
+      const prose = document.createElement('p')
+      prose.className = 'event-prose'
+      prose.innerHTML = highlightProperNouns(event.prose, properNouns)
+      card.appendChild(prose)
+    }
+
+    // Agent state changes
+    const changes = event.agentChanges.filter(c => c.newState || c.newType)
+    if (changes.length > 0) {
+      const changesEl = document.createElement('div')
+      changesEl.className = 'event-changes'
+      const allAgents = [...history.agents, ...history.spawnedAgents]
+      changesEl.textContent = changes.map(c => {
+        const agent = allAgents[c.agentIndex]
+        const name = agent?.name ?? '?'
+        const parts = []
+        if (c.newState) parts.push(c.newState)
+        if (c.newType) parts.push(`became ${c.newType}`)
+        return `${name}: ${parts.join(', ')}`
+      }).join(' · ')
+      card.appendChild(changesEl)
+    }
+
+    // Spawned agents
+    const spawns = event.agentChanges.filter(c => c.spawned)
+    if (spawns.length > 0) {
+      const spawnsEl = document.createElement('div')
+      spawnsEl.className = 'event-changes'
+      spawnsEl.textContent = spawns.map(c => {
+        const domain = c.spawned?.domains[0] ?? '?'
+        const type = c.spawned?.type ?? '?'
+        return `spawned: ${domain} (${type})`
+      }).join(' · ')
+      card.appendChild(spawnsEl)
+    }
+
+    // Region tags
+    if (event.regionTags.length > 0) {
+      const regionsEl = document.createElement('div')
+      regionsEl.className = 'event-regions'
+      const regionNames = event.regionTags.map(id => {
+        const region = history.regions.find(r => r.id === id)
+        return region?.name || id
+      })
+      regionsEl.textContent = `regions: ${regionNames.join(', ')}`
+      card.appendChild(regionsEl)
+    }
+
+    container.appendChild(card)
+  }
+
+  return container
+}
+
+/**
+ * Render regions as cards.
+ * @param {MythicHistory} history
+ * @returns {HTMLElement}
+ */
+function renderRegions(history) {
+  const container = document.createElement('div')
+  container.className = 'divider-section'
+
+  const heading = document.createElement('h3')
+  heading.className = 'section-heading'
+  heading.textContent = 'regions'
+  container.appendChild(heading)
+
+  for (const region of history.regions) {
+    const card = document.createElement('div')
+    card.className = 'region-card'
+
+    const name = document.createElement('span')
+    name.className = 'region-name'
+    name.textContent = region.name
+
+    const concepts = document.createElement('span')
+    concepts.className = 'region-concepts'
+    concepts.textContent = region.concepts.join(', ')
+
+    const taggedBy = document.createElement('span')
+    taggedBy.className = 'region-tagged-by'
+    taggedBy.textContent = `tagged by event ${region.taggedBy.join(', ')}`
+
+    card.append(name, concepts, taggedBy)
+    container.appendChild(card)
+  }
+
+  return container
+}
+
+// ── Structure formatting ──
+
 /**
  * Format a creation myth as readable debug text.
  * @param {CreationMyth} myth
  * @param {Pantheon} [pantheon]
+ * @param {MythicHistory} [history]
  * @returns {string}
  */
-function formatStructure(myth, pantheon) {
+function formatStructure(myth, pantheon, history) {
   const lines = []
   lines.push(`seed: ${myth.seed}`)
   lines.push(`recipe: ${myth.recipe}`)
@@ -343,6 +580,32 @@ function formatStructure(myth, pantheon) {
     }
     if (pantheon.tensions.length > 0) {
       lines.push(`tensions: ${pantheon.tensions.join(', ')}`)
+    }
+  }
+  if (history && history.events.length > 0) {
+    lines.push('')
+    lines.push('── mythic history ──')
+    for (const event of history.events) {
+      lines.push(`event ${event.index}: ${event.archetype}`)
+      lines.push(`  situation: ${fmtRoles(event.situation.roles)}`)
+      lines.push(`  action: ${fmtRoles(event.action.roles)}`)
+      lines.push(`  consequence: ${fmtRoles(event.consequence.roles)}`)
+      lines.push(`  legacy: ${fmtRoles(event.legacy.roles)}`)
+      if (event.regionTags.length > 0) {
+        lines.push(`  regions: ${event.regionTags.join(', ')}`)
+      }
+    }
+    lines.push('')
+    lines.push('── regions ──')
+    for (const region of history.regions) {
+      lines.push(`${region.name} [${region.id}]: ${region.concepts.join(', ')}`)
+    }
+    if (history.spawnedAgents.length > 0) {
+      lines.push('')
+      lines.push('── spawned agents ──')
+      for (const agent of history.spawnedAgents) {
+        lines.push(`${agent.name} [${agent.type}] ${agent.state} — ${agent.domains.join(', ')}`)
+      }
     }
   }
   return lines.join('\n')

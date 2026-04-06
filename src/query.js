@@ -1,4 +1,5 @@
 import { pick, pickN, weightedPick } from './utils.js'
+import { CATEGORIES } from './concepts.js'
 
 /**
  * @typedef {import('./concepts.js').ConceptGraph} ConceptGraph
@@ -144,7 +145,7 @@ export class ConceptQuery {
       const next = []
       for (const c of frontier) {
         for (const edge of this._graph.get(c) ?? []) {
-          if (!visited.has(edge.concept)) {
+          if (!visited.has(edge.concept) && !CATEGORIES.has(edge.concept)) {
             visited.add(edge.concept)
             next.push(edge.concept)
           }
