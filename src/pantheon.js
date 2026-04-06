@@ -46,6 +46,7 @@ import { addAgent } from './world.js'
  *   state: 'active'|'dead'|'sleeping'|'imprisoned'|'exiled'|'transformed'|'forgotten',
  *   origin: 'pantheon'|'history'|'landscape',
  *   worshippedBy: string[],
+ *   patronOf: string[],
  * }} Agent
  */
 
@@ -140,6 +141,7 @@ export function buildAgent(s) {
     state: s.state,
     origin: /** @type {const} */ ('pantheon'),
     worshippedBy: [],
+    patronOf: [],
   }
 }
 

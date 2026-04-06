@@ -3,6 +3,8 @@
  * @import { Agent } from './pantheon.js'
  * @import { World, GeogonyData, BiogonyData, AnthropogonyData, ChorogonyData } from './world.js'
  * @import { HierogonyData } from './hierogony.js'
+ * @import { PolitogonyData } from './politogony.js'
+ * @import { PresentData } from './present.js'
  */
 import { findAgent } from './world.js'
 
@@ -1051,6 +1053,532 @@ function renderHierogony(hierogony, world) {
   return container
 }
 
+/**
+ * Render politogony data as a DOM element.
+ * @param {PolitogonyData} politogony
+ * @param {World} world
+ * @returns {HTMLElement}
+ */
+function renderPolitogony(politogony, world) {
+  const container = document.createElement('div')
+
+  // Recipe badge
+  const badgeRow = document.createElement('div')
+  badgeRow.className = 'seed-header'
+  const recipeBadge = document.createElement('span')
+  recipeBadge.className = 'badge badge--recipe'
+  recipeBadge.textContent = politogony.recipe
+  badgeRow.appendChild(recipeBadge)
+  container.appendChild(badgeRow)
+
+  // Polities
+  if (politogony.polities.length > 0) {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'polities'
+    container.appendChild(heading)
+
+    for (const polity of politogony.polities) {
+      const card = document.createElement('div')
+      card.className = 'region-card'
+
+      // Name + state + governance badges
+      const nameLine = document.createElement('div')
+      nameLine.className = 'agent-name-line'
+      const name = document.createElement('span')
+      name.className = 'region-name'
+      name.textContent = polity.name
+      const stateBadge = document.createElement('span')
+      stateBadge.className = 'badge badge--seed'
+      stateBadge.textContent = polity.state
+      const govBadge = document.createElement('span')
+      govBadge.className = 'badge badge--recipe'
+      govBadge.textContent = polity.governanceType
+      nameLine.append(name, stateBadge, govBadge)
+      card.appendChild(nameLine)
+
+      // People
+      const peopleRow = renderTagRow('people', [polity.peopleId])
+      if (peopleRow) card.appendChild(peopleRow)
+
+      // Patron agent
+      if (polity.patronAgentId) {
+        const agent = findAgent(world, polity.patronAgentId)
+        const patronRow = renderTagRow('patron', [agent?.name ?? polity.patronAgentId])
+        if (patronRow) card.appendChild(patronRow)
+      }
+
+      // Religion
+      if (polity.religionId) {
+        const religion = (world.hierogony?.religions ?? []).find(r => r.id === polity.religionId)
+        const religionRow = renderTagRow('religion', [religion?.name ?? polity.religionId])
+        if (religionRow) card.appendChild(religionRow)
+      }
+
+      // Regions
+      if (polity.regionIds.length > 0) {
+        const regionNames = polity.regionIds.map(rid => {
+          const region = (world.chorogony?.regions ?? []).find(r => r.id === rid)
+          return region?.name ?? rid
+        })
+        const regionsRow = renderTagRow('regions', regionNames)
+        if (regionsRow) card.appendChild(regionsRow)
+      }
+
+      // Resources
+      const resourcesRow = renderTagRow('resources', polity.resources)
+      if (resourcesRow) card.appendChild(resourcesRow)
+
+      // Concepts
+      const concepts = document.createElement('span')
+      concepts.className = 'region-concepts'
+      concepts.textContent = polity.concepts.join(', ')
+      card.appendChild(concepts)
+
+      container.appendChild(card)
+    }
+  }
+
+  // Conflicts
+  if (politogony.conflicts.length > 0) {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'conflicts'
+    container.appendChild(heading)
+
+    for (const conflict of politogony.conflicts) {
+      const card = document.createElement('div')
+      card.className = 'region-card'
+
+      const nameLine = document.createElement('div')
+      nameLine.className = 'agent-name-line'
+      const name = document.createElement('span')
+      name.className = 'region-name'
+      name.textContent = conflict.name
+      const intensityBadge = document.createElement('span')
+      intensityBadge.className = 'badge badge--seed'
+      intensityBadge.textContent = conflict.intensity
+      const causeBadge = document.createElement('span')
+      causeBadge.className = 'badge badge--recipe'
+      causeBadge.textContent = conflict.cause
+      nameLine.append(name, intensityBadge, causeBadge)
+      card.appendChild(nameLine)
+
+      const polityNames = conflict.polityIds.map(id =>
+        politogony.polities.find(p => p.id === id)?.name ?? id
+      )
+      const partiesRow = renderTagRow('between', polityNames)
+      if (partiesRow) card.appendChild(partiesRow)
+
+      const concepts = document.createElement('span')
+      concepts.className = 'region-concepts'
+      concepts.textContent = conflict.concepts.join(', ')
+      card.appendChild(concepts)
+
+      container.appendChild(card)
+    }
+  }
+
+  // Alliances
+  if (politogony.alliances.length > 0) {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'alliances'
+    container.appendChild(heading)
+
+    for (const alliance of politogony.alliances) {
+      const card = document.createElement('div')
+      card.className = 'region-card'
+
+      const nameLine = document.createElement('div')
+      nameLine.className = 'agent-name-line'
+      const name = document.createElement('span')
+      name.className = 'region-name'
+      name.textContent = alliance.name
+      const basisBadge = document.createElement('span')
+      basisBadge.className = 'badge badge--seed'
+      basisBadge.textContent = alliance.basis
+      nameLine.append(name, basisBadge)
+      card.appendChild(nameLine)
+
+      const polityNames = alliance.polityIds.map(id =>
+        politogony.polities.find(p => p.id === id)?.name ?? id
+      )
+      const membersRow = renderTagRow('members', polityNames)
+      if (membersRow) card.appendChild(membersRow)
+
+      const concepts = document.createElement('span')
+      concepts.className = 'region-concepts'
+      concepts.textContent = alliance.concepts.join(', ')
+      card.appendChild(concepts)
+
+      container.appendChild(card)
+    }
+  }
+
+  // Ruins
+  if (politogony.ruins.length > 0) {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'ruins'
+    container.appendChild(heading)
+
+    for (const ruin of politogony.ruins) {
+      const card = document.createElement('div')
+      card.className = 'region-card'
+
+      const nameLine = document.createElement('div')
+      nameLine.className = 'agent-name-line'
+      const name = document.createElement('span')
+      name.className = 'region-name'
+      name.textContent = ruin.name
+      const formerPolity = politogony.polities.find(p => p.id === ruin.formerPolityId)
+      const formerBadge = document.createElement('span')
+      formerBadge.className = 'badge badge--seed'
+      formerBadge.textContent = `former: ${formerPolity?.name ?? ruin.formerPolityId}`
+      nameLine.append(name, formerBadge)
+      card.appendChild(nameLine)
+
+      const regionObj = (world.chorogony?.regions ?? []).find(r => r.id === ruin.regionId)
+      if (regionObj) {
+        const regionRow = renderTagRow('region', [regionObj.name])
+        if (regionRow) card.appendChild(regionRow)
+      }
+
+      const remainsRow = renderTagRow('remains', ruin.whatRemains)
+      if (remainsRow) card.appendChild(remainsRow)
+
+      const concepts = document.createElement('span')
+      concepts.className = 'region-concepts'
+      concepts.textContent = ruin.concepts.join(', ')
+      card.appendChild(concepts)
+
+      container.appendChild(card)
+    }
+  }
+
+  // Legends
+  if (politogony.legends.length > 0) {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'legends'
+    container.appendChild(heading)
+
+    for (const legend of politogony.legends) {
+      const card = document.createElement('div')
+      card.className = 'region-card'
+
+      const nameLine = document.createElement('div')
+      nameLine.className = 'agent-name-line'
+      const polity = politogony.polities.find(p => p.id === legend.polityId)
+      const polityName = document.createElement('span')
+      polityName.className = 'region-name'
+      polityName.textContent = polity?.name ?? legend.polityId
+      const interpBadge = document.createElement('span')
+      interpBadge.className = 'badge badge--seed'
+      interpBadge.textContent = legend.interpretation
+      nameLine.append(polityName, interpBadge)
+      card.appendChild(nameLine)
+
+      const event = world.events[legend.eventIndex]
+      if (event) {
+        const eventRow = renderTagRow('event', [`#${legend.eventIndex}: ${event.archetype}`])
+        if (eventRow) card.appendChild(eventRow)
+      }
+
+      const concepts = document.createElement('span')
+      concepts.className = 'region-concepts'
+      concepts.textContent = legend.concepts.join(', ')
+      card.appendChild(concepts)
+
+      container.appendChild(card)
+    }
+  }
+
+  return container
+}
+
+/**
+ * Render present-layer data as a DOM element.
+ * @param {PresentData} present
+ * @param {World} world
+ * @returns {HTMLElement}
+ */
+function renderPresent(present, world) {
+  const container = document.createElement('div')
+
+  // Recipe badge
+  const badgeRow = document.createElement('div')
+  badgeRow.className = 'seed-header'
+  const recipeBadge = document.createElement('span')
+  recipeBadge.className = 'badge badge--recipe'
+  recipeBadge.textContent = present.recipe
+  badgeRow.appendChild(recipeBadge)
+  container.appendChild(badgeRow)
+
+  // Crisis
+  {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'crisis'
+    container.appendChild(heading)
+
+    const card = document.createElement('div')
+    card.className = 'region-card'
+
+    const nameLine = document.createElement('div')
+    nameLine.className = 'agent-name-line'
+    const name = document.createElement('span')
+    name.className = 'region-name'
+    name.textContent = present.crisis.name
+    const typeBadge = document.createElement('span')
+    typeBadge.className = 'badge badge--recipe'
+    typeBadge.textContent = present.crisis.type
+    const sevBadge = document.createElement('span')
+    sevBadge.className = 'badge badge--seed'
+    sevBadge.textContent = present.crisis.severity
+    nameLine.append(name, typeBadge, sevBadge)
+    card.appendChild(nameLine)
+
+    // Affected regions
+    if (present.crisis.affectedRegionIds.length > 0) {
+      const regionNames = present.crisis.affectedRegionIds.map(rid => {
+        const region = (world.chorogony?.regions ?? []).find(r => r.id === rid)
+        return region?.name ?? rid
+      })
+      const regionsRow = renderTagRow('affected regions', regionNames)
+      if (regionsRow) card.appendChild(regionsRow)
+    }
+
+    // Flaw connection
+    const flawRow = renderTagRow('flaw connection', present.crisis.flawConnection)
+    if (flawRow) card.appendChild(flawRow)
+
+    const concepts = document.createElement('span')
+    concepts.className = 'region-concepts'
+    concepts.textContent = present.crisis.concepts.join(', ')
+    card.appendChild(concepts)
+
+    container.appendChild(card)
+  }
+
+  // Factions
+  if (present.factions.length > 0) {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'factions'
+    container.appendChild(heading)
+
+    for (const faction of present.factions) {
+      const card = document.createElement('div')
+      card.className = 'region-card'
+
+      const nameLine = document.createElement('div')
+      nameLine.className = 'agent-name-line'
+      const name = document.createElement('span')
+      name.className = 'region-name'
+      name.textContent = faction.name
+      const approachBadge = document.createElement('span')
+      approachBadge.className = 'badge badge--recipe'
+      approachBadge.textContent = faction.approach
+      const strengthBadge = document.createElement('span')
+      strengthBadge.className = 'badge badge--seed'
+      strengthBadge.textContent = faction.strength
+      nameLine.append(name, approachBadge, strengthBadge)
+      card.appendChild(nameLine)
+
+      // Member polities
+      if (faction.polityIds.length > 0) {
+        const polityNames = faction.polityIds.map(id =>
+          (world.politogony?.polities ?? []).find(p => p.id === id)?.name ?? id
+        )
+        const polityRow = renderTagRow('polities', polityNames)
+        if (polityRow) card.appendChild(polityRow)
+      }
+
+      // Leader agent
+      if (faction.leaderAgentId) {
+        const agent = findAgent(world, faction.leaderAgentId)
+        const leaderRow = renderTagRow('leader', [agent?.name ?? faction.leaderAgentId])
+        if (leaderRow) card.appendChild(leaderRow)
+      }
+
+      // Religions
+      if (faction.religionIds.length > 0) {
+        const religionNames = faction.religionIds.map(id =>
+          (world.hierogony?.religions ?? []).find(r => r.id === id)?.name ?? id
+        )
+        const relRow = renderTagRow('religions', religionNames)
+        if (relRow) card.appendChild(relRow)
+      }
+
+      const concepts = document.createElement('span')
+      concepts.className = 'region-concepts'
+      concepts.textContent = faction.concepts.join(', ')
+      card.appendChild(concepts)
+
+      container.appendChild(card)
+    }
+  }
+
+  // Recent Event
+  {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'recent event'
+    container.appendChild(heading)
+
+    const card = document.createElement('div')
+    card.className = 'region-card'
+
+    const nameLine = document.createElement('div')
+    nameLine.className = 'agent-name-line'
+    const name = document.createElement('span')
+    name.className = 'region-name'
+    name.textContent = present.recentEvent.name
+    const typeBadge = document.createElement('span')
+    typeBadge.className = 'badge badge--recipe'
+    typeBadge.textContent = present.recentEvent.type
+    nameLine.append(name, typeBadge)
+    card.appendChild(nameLine)
+
+    // Involved entities
+    if (present.recentEvent.involvedEntityIds.length > 0) {
+      const entityNames = present.recentEvent.involvedEntityIds.map(id => {
+        const agent = findAgent(world, id)
+        if (agent) return agent.name
+        const polity = (world.politogony?.polities ?? []).find(p => p.id === id)
+        if (polity) return polity.name
+        const ruin = (world.politogony?.ruins ?? []).find(r => r.id === id)
+        if (ruin) return ruin.name
+        const site = (world.hierogony?.sacredSites ?? []).find(s => s.id === id)
+        if (site) return site.name
+        return id
+      })
+      const entRow = renderTagRow('involves', entityNames)
+      if (entRow) card.appendChild(entRow)
+    }
+
+    // Region
+    if (present.recentEvent.regionId) {
+      const region = (world.chorogony?.regions ?? []).find(r => r.id === present.recentEvent.regionId)
+      const regRow = renderTagRow('location', [region?.name ?? present.recentEvent.regionId])
+      if (regRow) card.appendChild(regRow)
+    }
+
+    const concepts = document.createElement('span')
+    concepts.className = 'region-concepts'
+    concepts.textContent = present.recentEvent.concepts.join(', ')
+    card.appendChild(concepts)
+
+    container.appendChild(card)
+  }
+
+  // Active Powers
+  if (present.activePowers.length > 0) {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'active powers'
+    container.appendChild(heading)
+
+    for (const power of present.activePowers) {
+      const card = document.createElement('div')
+      card.className = 'region-card'
+
+      const nameLine = document.createElement('div')
+      nameLine.className = 'agent-name-line'
+      const agent = findAgent(world, power.agentId)
+      const name = document.createElement('span')
+      name.className = 'region-name'
+      name.textContent = agent?.name ?? power.agentId
+      const actionBadge = document.createElement('span')
+      actionBadge.className = 'badge badge--seed'
+      actionBadge.textContent = power.currentAction
+      nameLine.append(name, actionBadge)
+      card.appendChild(nameLine)
+
+      // Faction alignment
+      if (power.factionAlignment) {
+        const faction = present.factions.find(f => f.id === power.factionAlignment)
+        const facRow = renderTagRow('faction', [faction?.name ?? power.factionAlignment])
+        if (facRow) card.appendChild(facRow)
+      }
+
+      // Region
+      if (power.regionId) {
+        const region = (world.chorogony?.regions ?? []).find(r => r.id === power.regionId)
+        const regRow = renderTagRow('location', [region?.name ?? power.regionId])
+        if (regRow) card.appendChild(regRow)
+      }
+
+      const concepts = document.createElement('span')
+      concepts.className = 'region-concepts'
+      concepts.textContent = power.concepts.join(', ')
+      card.appendChild(concepts)
+
+      container.appendChild(card)
+    }
+  }
+
+  // Rumors
+  if (present.rumors.length > 0) {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'rumors'
+    container.appendChild(heading)
+
+    for (const rumor of present.rumors) {
+      const card = document.createElement('div')
+      card.className = 'region-card'
+
+      const nameLine = document.createElement('div')
+      nameLine.className = 'agent-name-line'
+      const claim = document.createElement('span')
+      claim.className = 'region-name'
+      claim.textContent = rumor.claim
+      const truthBadge = document.createElement('span')
+      truthBadge.className = 'badge badge--seed'
+      truthBadge.textContent = rumor.isTrue ? 'true' : 'false'
+      nameLine.append(claim, truthBadge)
+      if (rumor.distortion) {
+        const distBadge = document.createElement('span')
+        distBadge.className = 'badge badge--recipe'
+        distBadge.textContent = rumor.distortion
+        nameLine.appendChild(distBadge)
+      }
+      card.appendChild(nameLine)
+
+      const refRow = renderTagRow('about', [`${rumor.referencedEntityType}: ${rumor.referencedEntityId}`])
+      if (refRow) card.appendChild(refRow)
+
+      const concepts = document.createElement('span')
+      concepts.className = 'region-concepts'
+      concepts.textContent = rumor.concepts.join(', ')
+      card.appendChild(concepts)
+
+      container.appendChild(card)
+    }
+  }
+
+  // Hidden Truth
+  if (present.hiddenTruth.length > 0) {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'hidden truth'
+    container.appendChild(heading)
+
+    const card = document.createElement('div')
+    card.className = 'region-card'
+    const chain = document.createElement('span')
+    chain.className = 'region-concepts'
+    chain.textContent = present.hiddenTruth.join(' \u2192 ')
+    card.appendChild(chain)
+    container.appendChild(card)
+  }
+
+  return container
+}
+
 // ── Layer registry ──
 
 /**
@@ -1105,6 +1633,18 @@ const LAYER_RENDERERS = [
     show: w => w.hierogony !== null,
     render: w => [renderHierogony(/** @type {HierogonyData} */ (w.hierogony), w)],
     data: w => /** @type {object} */ (w.hierogony),
+  },
+  {
+    title: 'Layer 7 \u2014 Politogony',
+    show: w => w.politogony !== null,
+    render: w => [renderPolitogony(/** @type {PolitogonyData} */ (w.politogony), w)],
+    data: w => /** @type {object} */ (w.politogony),
+  },
+  {
+    title: 'Layer 8 \u2014 The Present',
+    show: w => w.present !== null,
+    render: w => [renderPresent(/** @type {PresentData} */ (w.present), w)],
+    data: w => /** @type {object} */ (w.present),
   },
   {
     title: 'History',

@@ -13,7 +13,7 @@ Given a seed, it generates a complete world — gods, histories, cultures, regio
 structured data across cascading layers. The same seed always produces the same world.
 Higher weirdness produces stranger, more distant connections.
 
-The generation cascade: **Concept Graph → Graph Walk → Myth Structure → Pantheon → History → Geogony → Biogony → Anthropogony → Chorogony → Hierogony**
+The generation cascade: **Concept Graph → Graph Walk → Myth Structure → Pantheon → History → Geogony → Biogony → Anthropogony → Chorogony → Hierogony → Politogony → The Present**
 
 Future layers will build on top of the myth: cultures and politics emerging
 from the story rather than the other way around. All layers produce structured data —
@@ -24,7 +24,7 @@ No canvas. No frameworks. No production dependencies.
 Deployed to: **Cloudflare Pages**.
 
 ### Current Layer
-Layer 6: Hierogony — what peoples believe and how belief divides them.
+Layer 8: The Present — what is happening right now, when the player arrives.
 
 ---
 
@@ -111,6 +111,10 @@ src/
   chorogony.js   — generateChorogony(graph, world, rng). Sets world.chorogony (enriched regions).
   hierogony.js   — generateHierogony(graph, world, rng). Sets world.hierogony (religions, heresies, sacred sites, practices).
   hierogonyArchetypes.js — HIEROGONY_SHAPES registry: 6 belief-origin archetype functions.
+  politogony.js  — generatePolitogony(graph, world, rng). Sets world.politogony (polities, conflicts, alliances, ruins, legends).
+  politogonyArchetypes.js — POLITOGONY_SHAPES registry: 6 power-origin archetype functions.
+  present.js     — generatePresent(graph, world, rng). Sets world.present (crisis, factions, recentEvent, rumors, activePowers, hiddenTruth).
+  presentArchetypes.js — PRESENT_SHAPES registry: 6 present-crisis archetype functions.
   archetypeSelection.js — Shared recipe group sets + applyRecipeBonuses() helper for layer archetype selection.
   conceptResolvers.js — Shared concept resolution: expandConceptCluster, resolveShape, resolveSubstance, resolvePhysicalTraits.
   query.js       — Chainable concept graph query builder. query(graph).where().or().get().
@@ -231,7 +235,7 @@ All generation layers write into a single mutable `World` object (`src/world.js`
 No layer is "done" — each enriches the shared state. `createWorld(seed)` produces
 an empty shell; layers fill it sequentially.
 
-**Structure:** `seed`, `myth`, `agents[]`, `tensions[]`, `events[]`, `regions[]`, `geogony`, `biogony`, `anthropogony`, `chorogony`, `hierogony`.
+**Structure:** `seed`, `myth`, `agents[]`, `tensions[]`, `events[]`, `regions[]`, `geogony`, `biogony`, `anthropogony`, `chorogony`, `hierogony`, `politogony`, `present`.
 
 **Agent registry:** `world.agents` is the single canonical array. All agents — whether
 from the pantheon, spawned during history, or born as landscape spirits — live here.
@@ -498,6 +502,85 @@ origin, concepts.
 (string[] of religion ids), agents get `worshippedBy` (string[] of religion ids).
 
 **World structure:** `world.hierogony = { recipe, religions, heresies, sacredSites, practices }`.
+
+### Politogony System
+`generatePolitogony(graph, world, rng)` sets `world.politogony` with polities, conflicts,
+alliances, ruins, and legends. Uses a separate RNG stream (`seed + '-politogony'`).
+Runs after hierogony.
+
+**Pipeline:** Select archetype → Run shape function → Expand polity seeds →
+Assign regions by concept+people+sacred-site scoring → Mark fallen polities and
+generate ruins → Generate conflicts (scored by religion, border, resource overlap) →
+Generate alliances (scored by religion, patron, common enemy) → Generate legends
+(event reinterpretations per polity) → Apply mutations.
+
+**6 power-origin archetypes** in `politogonyArchetypes.js`, keyed by name:
+- **Theocracy** — gods rule through priests; one polity per religion
+- **Conquest** — one people dominates by force; conqueror + vassals
+- **Confederation** — peoples united by shared threat or resource
+- **Dynasty** — divine bloodline rules; primary branch + rival branches
+- **Merchant** — trade routes and resources drive political power
+- **Remnant** — polities formed from ruins of something greater
+
+**Polity structure:** id, name, peopleId, regionIds, capitalRegionId, patronAgentId,
+religionId, state (rising/stable/declining/fallen), governanceType, concepts, resources.
+
+**Conflict structure:** id, name, polityIds (pair), cause, concepts, intensity (cold/simmering/open).
+
+**Alliance structure:** id, name, polityIds, basis, concepts.
+
+**Ruin structure:** id, name, regionId, formerPolityId, concepts, whatRemains.
+
+**Legend structure:** id, polityId, eventIndex, interpretation (glorifies/denies/mourns/fears/claims-credit), concepts.
+
+**Mutations:** regions get `controlledBy` (string polity id), agents get `patronOf`
+(string[] of polity ids).
+
+**World structure:** `world.politogony = { recipe, polities, conflicts, alliances, ruins, legends }`.
+
+### Present System
+`generatePresent(graph, world, rng)` sets `world.present` with the current state
+of the world when the player arrives. Uses a separate RNG stream
+(`seed + '-present'`). Runs after politogony — the final generation layer.
+
+**Pipeline:** Select archetype → Run shape function → Find flaw-touched events →
+Build hidden truth chain (flaw→crisis concept path) → Build crisis (expand from
+flaw's latest manifestation) → Build factions (split polities by crisis response) →
+Build recent event (the status-quo-breaking trigger) → Build active powers (agents
+currently influencing the world) → Build rumors (true/false claims about entities) →
+Apply mutations.
+
+**6 crisis archetypes** in `presentArchetypes.js`, keyed by name:
+- **Plague** — flaw manifests as spreading corruption (land, life, or mind)
+- **Schism** — religious/ideological split turned violent
+- **Succession** — power vacuum from fallen ruler/patron/god
+- **Invasion** — external or resurgent force threatens established order
+- **Depletion** — critical resource, binding, or sacred site is failing
+- **Awakening** — something sealed/sleeping/forgotten is stirring
+
+**Crisis structure:** id, name, type (archetype name), concepts (4-6), severity
+(brewing/breaking/critical), affectedRegionIds, flawConnection, latestEventIndex.
+
+**Faction structure:** id, name, approach (e.g. quarantine/purify/exploit/flee),
+polityIds, religionIds, leaderAgentId, concepts, strength (dominant/rising/desperate).
+
+**RecentEvent structure:** id, name, type (death/discovery/breach/proclamation/omen/collapse),
+concepts, involvedEntityIds, regionId.
+
+**Rumor structure:** id, claim (structured template), isTrue, referencedEntityId,
+referencedEntityType (agent/ruin/sacred-site/polity), distortion
+(null/misattribute/invert/exaggerate/conflate), concepts, regionId.
+
+**ActivePower structure:** agentId, currentAction (stoking/opposing/manipulating/observing/
+slumbering/returning), factionAlignment, regionId, concepts.
+
+**Hidden truth:** ordered string[] of 3-6 concepts connecting myth.flaw to crisis.
+Each adjacent pair reachable within 2 hops on the concept graph.
+
+**Mutations:** regions get `crisisImpact` (epicenter/affected), polities get
+`crisisStance` (faction approach), agents get `presentAction` (active power action).
+
+**World structure:** `world.present = { recipe, crisis, factions, recentEvent, rumors, activePowers, hiddenTruth }`.
 
 ---
 

@@ -30,6 +30,7 @@ import { query } from './query.js'
  *   landmarks: string[],
  *   lifeforms: string[],
  *   climate: string[],
+ *   controlledBy: string|null,
  * }} ChorogonyRegion
  */
 
@@ -213,6 +214,7 @@ export function generateChorogony(graph, world, rng) {
       landmarks: enrichment ? [...enrichment.landmarks] : [],
       lifeforms: [],
       climate: enrichment ? [...enrichment.climate] : [],
+      controlledBy: null,
     }
   })
 

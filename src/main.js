@@ -7,6 +7,8 @@ import { generateBiogony } from './biogony.js'
 import { generateAnthropogony } from './anthropogony.js'
 import { generateChorogony } from './chorogony.js'
 import { generateHierogony } from './hierogony.js'
+import { generatePolitogony } from './politogony.js'
+import { generatePresent } from './present.js'
 import { createWorld } from './world.js'
 import { buildControls, showEmptyState, displayMyth, displayMythBatch } from './ui.js'
 import { buildExplorer } from './explorer.js'
@@ -69,6 +71,8 @@ function buildWorld(seed, forceRecipe) {
   generateAnthropogony(graph, world, mulberry32(hashSeed(seed + '-anthropogony')))
   generateChorogony(graph, world, mulberry32(hashSeed(seed + '-chorogony')))
   generateHierogony(graph, world, mulberry32(hashSeed(seed + '-hierogony')))
+  generatePolitogony(graph, world, mulberry32(hashSeed(seed + '-politogony')))
+  generatePresent(graph, world, mulberry32(hashSeed(seed + '-present')))
   return world
 }
 

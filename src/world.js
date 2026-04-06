@@ -10,6 +10,8 @@
  * @import { People } from './anthropogony.js'
  * @import { ChorogonyRegion } from './chorogony.js'
  * @import { HierogonyData } from './hierogony.js'
+ * @import { PolitogonyData } from './politogony.js'
+ * @import { PresentData } from './present.js'
  */
 
 // ── Typedefs ──
@@ -70,6 +72,8 @@
  *   anthropogony: AnthropogonyData | null,
  *   chorogony: ChorogonyData | null,
  *   hierogony: HierogonyData | null,
+ *   politogony: PolitogonyData | null,
+ *   present: PresentData | null,
  * }} World
  */
 
@@ -94,6 +98,8 @@ export function createWorld(seed) {
     anthropogony: null,
     chorogony: null,
     hierogony: null,
+    politogony: null,
+    present: null,
   }
 }
 

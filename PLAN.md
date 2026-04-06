@@ -423,10 +423,10 @@ Small tweaks and bug fixes. Add when found, remove when resolved.
 
 ### Phase 35 — Politogony Generator
 
-- [ ] `src/politogony.js` — generatePolitogony(graph, world, rng) → sets world.politogony
-- [ ] `src/politogonyArchetypes.js` — archetype functions for polity generation
-- [ ] Separate RNG stream: `seed + '-politogony'`
-- [ ] Output type:
+- [x] `src/politogony.js` — generatePolitogony(graph, world, rng) → sets world.politogony
+- [x] `src/politogonyArchetypes.js` — archetype functions for polity generation
+- [x] Separate RNG stream: `seed + '-politogony'`
+- [x] Output type:
   ```
   Politogony {
     polities: Polity[],          // 3-8 kingdoms/tribes/city-states
@@ -440,13 +440,13 @@ Small tweaks and bug fixes. Add when found, remove when resolved.
   - `Polity = { id, name, peopleId, regionIds[], patronAgentId, religionId, state, concepts[], resources[] }`
   - `Ruin = { id, name, regionId, formerPolityId, concepts[], whatRemains[] }`
   - `Legend = { id, polityId, eventIndex, interpretation, concepts[] }` — same event, different telling
-- [ ] Power follows resources (regions), belief (religions), and history (events)
-- [ ] Ruins are exploration sites — fallen civilizations with concept-tagged remains
-- [ ] Legends are structured data — which concepts a polity emphasizes or denies about a historical event
-- [ ] **Mutates earlier entities:** regions get `controlledBy`, agents get `patronOf`
-- [ ] Wire into `buildWorld()` after hierogony
-- [ ] UI: Layer 7 panel with polity cards, conflict list, ruin cards, legend cards
-- [ ] Verify: `npm run validate` passes
+- [x] Power follows resources (regions), belief (religions), and history (events)
+- [x] Ruins are exploration sites — fallen civilizations with concept-tagged remains
+- [x] Legends are structured data — which concepts a polity emphasizes or denies about a historical event
+- [x] **Mutates earlier entities:** regions get `controlledBy`, agents get `patronOf`
+- [x] Wire into `buildWorld()` after hierogony
+- [x] UI: Layer 7 panel with polity cards, conflict list, ruin cards, legend cards
+- [x] Verify: `npm run validate` passes
 
 ---
 
@@ -458,9 +458,9 @@ Small tweaks and bug fixes. Add when found, remove when resolved.
 
 ### Phase 36 — Present Generator
 
-- [ ] `src/present.js` — generatePresent(graph, world, rng) → sets world.present
-- [ ] Separate RNG stream: `seed + '-present'`
-- [ ] Output type:
+- [x] `src/present.js` — generatePresent(graph, world, rng) → sets world.present
+- [x] Separate RNG stream: `seed + '-present'`
+- [x] Output type:
   ```
   Present {
     crisis: Crisis,              // the flaw's latest manifestation
@@ -471,15 +471,15 @@ Small tweaks and bug fixes. Add when found, remove when resolved.
     hiddenTruth: string[],      // concept chain connecting crisis to original flaw
   }
   ```
-- [ ] The crisis traces directly to `myth.flaw` concepts through the chain of events
-- [ ] Factions derive from polities/religions splitting on how to respond to the crisis
-- [ ] Rumors reference real entities (artifacts, ruins, agents, sacred sites) but may misattribute or invert
-- [ ] `activePowers` identifies which agents are alive/active and what they're doing
-- [ ] `hiddenTruth` is a concept chain the player can reconstruct through exploration
-- [ ] The player arrives at an inflection point — things are about to break
-- [ ] Wire into `buildWorld()` after politogony
-- [ ] UI: Layer 8 panel with crisis card, faction cards, rumor list, active powers
-- [ ] Verify: `npm run validate` passes
+- [x] The crisis traces directly to `myth.flaw` concepts through the chain of events
+- [x] Factions derive from polities/religions splitting on how to respond to the crisis
+- [x] Rumors reference real entities (artifacts, ruins, agents, sacred sites) but may misattribute or invert
+- [x] `activePowers` identifies which agents are alive/active and what they're doing
+- [x] `hiddenTruth` is a concept chain the player can reconstruct through exploration
+- [x] The player arrives at an inflection point — things are about to break
+- [x] Wire into `buildWorld()` after politogony
+- [x] UI: Layer 8 panel with crisis card, faction cards, rumor list, active powers
+- [x] Verify: `npm run validate` passes
 
 ---
 
