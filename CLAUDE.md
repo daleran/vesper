@@ -187,8 +187,9 @@ beat, it gathers sensory data (color, sound, texture, shape, evokes) from the gr
 all concepts in the roles, selects a template from the appropriate pool, and calls it
 with the roles and sensory map. After the core template, beat-specific elaborators walk
 the graph from the beat's primary concept (evokes/rhymes/sensory chains) to add 1-2
-sentences of associative detail. The act pool is selected by the `verb` role (struck,
-slew, gave_birth, sacrificed, split, collided, stole, dreamed, corrupted, merged).
+sentences of associative detail. The act pool is selected by the `verb` role (struck, slew, gave_birth, sacrificed,
+split, collided, stole, dreamed, corrupted, merged, overthrew, wandered, named,
+wove, spread, mourned, transgressed).
 Concepts discovered during elaboration are collected and returned alongside the prose.
 
 ### Seeded PRNG
@@ -245,6 +246,12 @@ recipe means adding one shape function.
 - Dream → sleeping dreamer god + dream-world spirit + herald
 - Corruption → dead perfection spirit + corruptor demon (no gods)
 - Symbiosis → twin bound gods + merged-world spirit
+- Exile → exiled god + origin spirit (transformed) + homesickness demon
+- Utterance → dead speaker god + named-world spirit + unnamed demon + herald
+- Weaving → crafter god + tool spirit + material ancestor (transformed) + flaw spirit
+- Contagion → source spirit + container ancestor (dead) + bloom demons (no gods)
+- Mourning → mourner god + dead ancestor + memorial spirit + grief demon
+- Taboo → transgressor demi-god (exiled) + law spirit (dead) + consequence god + taboo herald
 
 **Secondary derivation:** If primaries < 4, walks from flaw/important concepts to derive
 spirits until 3-7 total agents.
