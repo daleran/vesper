@@ -1,6 +1,6 @@
-# CLAUDE.md — Vesper Development Rules & Philosophy
+# CLAUDE.md — First Light Development Rules & Philosophy
 
-This file defines the architecture, philosophy, and rules for building Vesper.
+This file defines the architecture, philosophy, and rules for building First Light.
 Read it before writing any code. Follow it strictly.
 Update it when new systems or patterns are introduced.
 
@@ -8,18 +8,22 @@ Update it when new systems or patterns are introduced.
 
 ## Project Overview
 
-**Vesper** — A procedural island world generator built in the browser.
-Terrain, geology, flora, fauna, culture, and stories all emerge from a single seed.
-Nothing is hand-authored. The generator discovers content; the designer tunes the rules.
+**Vesper / First Light** — A procedural creation myth generator built in the browser.
+Given a seed and a weirdness dial, it generates a creation myth rendered as three prose
+fragments (priestly hymn, oral tradition, heretical whisper). The same seed always
+produces the same myth. Higher weirdness produces stranger, more distant connections.
 
-The generation cascade: **Geology → Flora → Fauna → Resources → Culture → Architecture → Villages → Stories**
+The generation cascade: **Concept Graph → Graph Walk → Myth Structure → Prose**
 
-Built with: **Vite**, **Vanilla JS**, **Canvas 2D API**, **HTML/CSS for UI panels**.
+Future layers will build on top of the myth: geography, ecology, and culture emerging
+from the story rather than the other way around.
+
+Built with: **Vite**, **Vanilla JS**, **HTML/CSS**.
+No canvas. No frameworks. No production dependencies.
 Deployed to: **Cloudflare Pages**.
 
 ### Current Layer
-Layer 1: Geology viewer. Material composition drives elevation and coastlines.
-All other layers are planned but not yet built. See PLAN.md.
+Layer 1: Creation myth generator — concept graph driven, three voices, text output.
 
 ---
 
@@ -60,29 +64,24 @@ All features move through two stages:
 
 ## Core Philosophy
 
-### 1. Define rules, not content
-The generator makes content. Never hand-author what the system should produce.
-A noise field makes material deposits. A weirdness dial shifts what's possible.
-If you're writing "put a crystal spire at (200, 300)", something has gone wrong.
+### 1. Mythology first, geography second
+The world emerges from the myth. Geography is mythology's scar tissue.
+A desert exists because a god's blood scorched the earth.
+A mountain exists because something vast was buried there.
+Never generate terrain and then paste a story on top.
 
-### 2. Emergence over authorship
-Coastlines emerge from where hard and soft materials meet sea level.
-Flora grows where its material affinities match the geology below it.
-Culture forms around resources the environment provides.
-Each layer responds to the layer below it. You tune the response, not the output.
+### 2. Authored vocabulary, generative grammar
+The concept graph is hand-authored. This is where the designer's voice lives.
+The graph walker and myth assembler are generative logic that operates on it.
+The author picks the atoms. The system does the chemistry.
 
-### 3. Flat source structure — no engine/data split
-All JS lives in `src/`. There is no content/engine boundary because there is no
-hand-authored content. Everything is generative logic or UI plumbing.
+### 3. Echo, not explanation
+The generator's most important output is not prose — it is tag propagation.
+Mythology bleeds into creature names, ruin inscriptions, and biome palettes.
+A player should feel the myth in the landscape before they read a word of it.
 
-### 4. HTML and CSS own the UI
-The canvas renders the world only — terrain, features, cursor.
-All panels, tooltips, and controls are HTML + CSS.
-Never draw UI text or menus onto the canvas.
-
-### 5. Prototype first
-Do not build systems for layers that don't exist yet.
-Layer 1 geology must be surprising before Layer 2 flora begins.
+### 4. Prototype first
+The myth generator must produce something surprising before geography begins.
 A layer is done when it produces unexpected results, not just correct ones.
 
 ---
@@ -91,78 +90,162 @@ A layer is done when it produces unexpected results, not just correct ones.
 
 ```
 src/
-  main.js       — Entry point. Wires Game, Camera, Input, worldgen, renderer, tooltip, tuning.
-  game.js       — RAF loop, canvas DPR setup, resize handling.
-  camera.js     — Pan, zoom (scale), worldToScreen, screenToWorld, bounds clamping.
-  input.js      — Keyboard (held + one-shot) and mouse (position, drag, wheel).
-  noise.js      — OpenSimplex2 noise, fbm() fractal brownian motion.
-  utils.js      — mulberry32 PRNG, hashSeed, clamp, lerp, smoothstep.
-  materials.js  — Material definitions (hardness, density, stability, weirdnessAffinity, baseColor).
-  worldgen.js   — Island generation pipeline. Returns WorldData.
-  elevation.js  — Elevation derivation and erosion simulation.
-  features.js   — Surface feature generation (ridges, spires, bogs, etc.).
-  renderer.js   — Offscreen terrain texture + per-frame compositing.
-  tooltip.js    — Hover inspection DOM element.
-  tuning.js     — GenParams defaults, TuningPanel DOM, preset system.
-  naming.js     — Procedural material/feature/island name generation per seed.
-index.html      — App shell: #tuning-panel, #viewport, #main-canvas, #ui-layer
-css/main.css    — Layout, tooltip, panel, dark theme.
+  main.js        — Entry point. Wires graph, myth, prose, pantheon, and UI.
+  utils.js       — mulberry32 PRNG, hashSeed, clamp, lerp, pick, pickN, weightedPick.
+  concepts.js    — Concept graph data (triples array) + buildGraph() + CONCEPTS set.
+  walker.js      — walkFrom(), findCollisions(), findParadoxes(), walkAll().
+  myth.js        — Thin orchestrator: picks a recipe, runs it, stamps seed.
+  prose.js       — renderProse(myth, graph) — assembles prose from beat roles + sensory edges.
+  pantheon.js    — generatePantheon(graph, myth, rng) → Pantheon. Agent pipeline.
+  pantheonShapes.js — Per-recipe shape functions: SHAPES registry keyed by recipe name.
+  query.js       — Chainable concept graph query builder. query(graph).where().or().get().
+  queryHelpers.js — Reusable semantic concept finders: findTool, findVoid, findArena, etc.
+  ui.js          — buildUI() — DOM controls (seed, generate) and output display.
+  recipes/
+    index.js       — CreationMyth/BeatRoles/MythRecipe typedefs, RECIPES registry array.
+    soloGod.js     — Recipe: single god from force/element creates world from void.
+    pantheonWar.js — Recipe: gods fight, one slain, victor shapes the world.
+    worldBirth.js  — Recipe: fauna god births the world, enemies kidnap it.
+    sacrifice.js   — Recipe: creator destroys itself, body becomes the world.
+    splitting.js   — Recipe: primordial unity divided, fragments become the world.
+    accident.js    — Recipe: unintended collision between forces creates the world.
+    cycle.js       — Recipe: recurring creation, new world from old world's ruins.
+    rebellion.js   — Recipe: creations overthrew creator, world built on corpse.
+    theft.js       — Recipe: creation stolen from another entity, world as crime.
+    dream.js       — Recipe: reality hallucinated by sleeping entity, might wake.
+    corruption.js  — Recipe: something perfect was ruined, perfection lost forever.
+    symbiosis.js   — Recipe: two things merged, world is both in permanent tension.
+index.html       — App shell: header#controls + main#output. No canvas.
+css/main.css     — Dark theme, centered layout, serif typography for prose.
 ```
 
-Adding a generation layer (e.g. Flora) means adding `src/flora.js` and wiring it in `worldgen.js`
-and `main.js`. No registration, no manifests, no boot loaders.
+Adding a recipe means writing `src/recipes/myRecipe.js` exporting a `MythRecipe` object,
+then pushing it onto the `RECIPES` array in `src/recipes/index.js`.
+
+Adding a generation layer (e.g. Geography) means adding `src/geography.js` and wiring
+it in `main.js`. No registration, no manifests, no boot loaders.
 
 ---
 
 ## Key Patterns
 
-### Generation Parameters (GenParams)
-All generation is driven by a single `GenParams` object (defined in `tuning.js`).
-`generateWorld(params)` takes it and returns `WorldData`.
-The tuning panel reads from and writes to a live params object.
-Default values live in `DEFAULT_PARAMS`. Presets are just `GenParams` objects.
+### Concept Graph
+The graph is a flat array of triples: `[subject, relation, object]`.
+Stored in `src/concepts.js` as `TRIPLES`. At runtime, `buildGraph(TRIPLES)` produces
+a bidirectional `Map<string, Edge[]>` for O(1) neighbor lookup.
 
-### Offscreen Terrain Texture
-`buildTerrainTexture(world, display)` renders terrain once to an offscreen canvas.
-`renderFrame()` blits it each frame using the camera transform.
-Only rebuild when generation params change — not per frame.
+Relation types: `is`, `color`, `sound`, `texture`, `shape`, `evokes`, `rhymes`,
+`collides`, `transforms`, `consumes`, `produces`.
+
+### Graph Walker
+`walkFrom(graph, rng, startConcept, maxHops, options?)` returns a `ConceptChain`.
+Narrative edges (`transforms`, `produces`, `consumes`, `collides`) are weighted 3×
+over descriptive edges (`is`, `color`, etc.) so walks follow events, not taxonomy.
+Optional `options.preferRelations` boosts specific edge types to 5× for recipe-specific
+character (e.g. sacrifice walks prefer `transforms`/`evokes` for metamorphosis flavor).
+
+`findCollisions()` finds where two chains land on the same concept or `collides`-linked concepts.
+`findParadoxes()` finds loops, inversions, and self-collisions within chains.
+
+### Recipe System
+`generateMyth(graph, seed)` picks a recipe via seeded RNG, runs it, returns `CreationMyth`.
+Every myth follows four beats: **before → act → cost → flaw**. Recipes are self-contained
+functions in `src/recipes/` that use queries and walks to fill the CreationMyth interface.
+Adding variety means adding recipes, not modifying the generator.
+
+Each beat contains `roles: BeatRoles` (a `Record<string, string>` mapping semantic role
+names to concept names) and `concepts: string[]`. Recipes never write prose — they output
+structured concept roles. The act beat's `verb` role selects the prose template sub-pool.
+
+**Cost vs Flaw distinction:**
+- **Cost** = what was sacrificed or spent. Past tense, completed, irreversible. The price is paid.
+- **Flaw** = the ongoing wound. Present tense, active, still shaping the world. The scar that won't heal.
+Cost is grief. Flaw is haunting. When these are clearly distinct, the myth has temporal depth.
+
+Twelve recipe archetypes: solo-god, pantheon-war, world-birth, sacrifice, splitting,
+accident, cycle, rebellion, theft, dream, corruption, symbiosis.
+
+### Query Helpers
+`src/queryHelpers.js` provides reusable semantic concept finders with tiered fallbacks:
+`findTool`, `findVoid`, `findArena`, `findCreator`, `findBirthplace`, `findDreamer`,
+`findPerfection`. Each tries the
+specific category first (e.g. `is item`) and widens to semantic matches (e.g. anything
+with a `shape` edge) when the pool is too shallow. Recipes use these instead of rigid
+category queries.
+
+### Prose Rendering
+`renderProse(myth, graph)` returns `{ prose: string, concepts: string[] }`. For each
+beat, it gathers sensory data (color, sound, texture, shape, evokes) from the graph for
+all concepts in the roles, selects a template from the appropriate pool, and calls it
+with the roles and sensory map. After the core template, beat-specific elaborators walk
+the graph from the beat's primary concept (evokes/rhymes/sensory chains) to add 1-2
+sentences of associative detail. The act pool is selected by the `verb` role (struck,
+slew, gave_birth, sacrificed, split, collided, stole, dreamed, corrupted, merged).
+Concepts discovered during elaboration are collected and returned alongside the prose.
 
 ### Seeded PRNG
-All randomness in generation flows from `mulberry32(hashSeed(params.seed))`.
-The same seed always produces the same world. Never use `Math.random()` in generation code.
-Use `Math.random()` only for ephemeral visual effects (e.g. animated noise).
+All randomness in generation flows from `mulberry32(hashSeed(seed))`.
+The same seed always produces the same myth. Never use `Math.random()` in generation code.
+The depth and character of graph walks are determined by the seed itself — not by a user-facing dial.
 
-### Noise Fields
-Each material gets its own noise field seeded independently from the master PRNG.
-Use `createNoise2D(seed)` and `fbm(noiseFn, x, y, octaves)` from `src/noise.js`.
-Multiple overlapping fields produce compositional blends at their intersections.
+### Query Builder
+`query(graph)` returns a chainable `ConceptQuery`.
 
-### Composition Normalization
-After computing all material noise values at a cell, normalize so they sum to 1.
-`compositionProperty(composition, 'hardness')` in `materials.js` does weighted averaging.
+Filters: `.where(relation, target?)` (AND group), `.or(relation, target?)` (OR within group),
+`.direction('fwd'|'rev'|'any')`, `.exclude(...concepts)`, `.nearby(concept, maxHops)`.
 
-### Weirdness
-Global weirdness (`params.globalWeirdness`) and per-material weirdness override both affect:
-- Which materials are more likely to appear (high weirdnessAffinity materials amplified)
-- How extreme noise values get (sharper peaks, deeper contrasts)
-- Which surface feature rules activate
+Transforms: `.pluck(relation)` follows a relation from results and returns the targets.
 
-### Camera Controls
-- **Pan:** WASD, arrow keys, or mouse drag
-- **Zoom:** Scroll wheel, or Q (zoom out) / E (zoom in)
-- **Reset:** Home or 0 key → `camera.fitToWorld()`
-- `camera.zoom(delta, pivotX, pivotY)` — always zooms toward cursor position
-- `camera.clampToBounds(worldW, worldH)` — called every frame to prevent drift
+Terminals: `.get()` → `string[]`, `.first(rng?)`, `.random(rng, n?)`.
 
----
+Ranking: `.rank(subjects)` returns a `RankedQuery` scored by 1-hop neighbor overlap.
+`RankedQuery` terminals: `.get()`, `.first()`, `.pickTop(rng, n)`, `.pickWeighted(rng)`, `.random(rng, n?)`.
 
-## Coordinate System
+### Sensory-Aware Prose
+Prose templates receive both beat roles and a sensory map. Templates are functions
+`(roles, sensoryMap) => string` that can optionally reference sensory edges (color,
+sound, texture, shape, evokes) from the concept graph to describe concepts in
+language shaped by their nature. A void of sleep is described differently than a
+void of pit because each has different sensory edges.
 
-- World origin: top-left of the generation grid
-- Positive X: right
-- Positive Y: down
-- Grid cell (cx, cy) maps to world pixels (cx × CELL_SIZE, cy × CELL_SIZE)
-- `CELL_SIZE = 10` (10 world pixels per grid cell — each cell ≈ 10m)
+### Pantheon System
+`generatePantheon(graph, myth, rng)` returns `{ agents: Agent[], tensions: string[] }`.
+Uses a separate RNG stream (`seed + '-pantheon'`) to isolate from myth generation.
+
+**Pipeline:** Extract primary agents → Derive secondary agents → Assign dispositions →
+Generate titles → Assign relationships → Determine states.
+
+**Agent structure:** name, title (epithet), type (god/demi-god/spirit/demon/ancestor/herald),
+domains (2-4 concepts), disposition (from `evokes` edges), relationships (rival/parent/
+sibling/slayer/creator/ward), mythRole, alive, state (active/dead/sleeping/imprisoned/
+exiled/transformed/forgotten).
+
+**Shape registry:** `SHAPES` in `pantheonShapes.js` — keyed by recipe name, each function
+reads its recipe's `extra` field to extract primary agents. No switch/case. Adding a new
+recipe means adding one shape function.
+
+**Per-recipe pantheon shapes:**
+- Solo-god → 1 god + flaw demon + cost spirit
+- Pantheon-war → victor god + slain god (dead) + surviving gods + legacy spirit
+- World-birth → parent god + child demi-god (imprisoned) + kidnapper demons
+- Sacrifice → dead creator god + body-path spirits (transformed)
+- Splitting → dead unity + twin fragment gods + splitter spirit
+- Accident → forces as spirits only (no gods)
+- Cycle → eternal creator god + dead previous-world ancestor
+- Rebellion → dead creator god + rebel demi-gods + ghost spirit
+- Theft → thief god + pursuing owner demon + treasure guardian spirit
+- Dream → sleeping dreamer god + dream-world spirit + herald
+- Corruption → dead perfection spirit + corruptor demon (no gods)
+- Symbiosis → twin bound gods + merged-world spirit
+
+**Secondary derivation:** If primaries < 4, walks from flaw/important concepts to derive
+spirits until 3-7 total agents.
+
+**Titles:** Four epithet patterns from graph edges: "the [Disposition]",
+"Who-[Verb]-in-[Domain]", "[Adjective] of [Domain]", "the [State-Participle]".
+
+**Relationships:** `collides` → rival, `consumes` → slayer, `transforms`/`produces` → parent,
+shared `is` category → sibling. Myth-derived: creator mythRole + derived → creator/ward.
 
 ---
 
@@ -170,8 +253,8 @@ Global weirdness (`params.globalWeirdness`) and per-material weirdness override 
 
 - Files: `camelCase.js`
 - Classes: `PascalCase`
-- Constants and param objects: `SCREAMING_SNAKE_CASE`
-- Material keys and internal ids: `snake_case`
+- Constants: `SCREAMING_SNAKE_CASE`
+- Concept keys, relation types: `snake_case` (all lowercase)
 - CSS classes: `kebab-case`
 
 ---
@@ -179,11 +262,12 @@ Global weirdness (`params.globalWeirdness`) and per-material weirdness override 
 ## Rules
 
 - **Never use Math.random() in generation** — always seed from `mulberry32(hashSeed(seed))`
-- **No canvas UI** — canvas = world only. Panels and tooltips are HTML/CSS.
-- **No hand-authored content** — all content emerges from generative rules
-- **Prototype first** — don't build Layer N+1 until Layer N is surprising
-- **Validate after every change** — `npm run validate` before marking work done
-- **No dead code** — after any refactor, delete orphaned files and unused exports
+- **No canvas** — this layer is pure text. UI is HTML/CSS only.
+- **No hand-authored myth content** — myths emerge from graph walks. Don't write specific myths.
+- **The graph is authored, not the output** — you pick the atoms, the system does chemistry.
+- **Prototype first** — myth layer must be surprising before geography begins.
+- **Validate after every change** — `npm run validate` before marking work done.
+- **No dead code** — after any refactor, delete orphaned files and unused exports.
 
 ---
 
