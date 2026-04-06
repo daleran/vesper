@@ -1,83 +1,80 @@
-import Game from './game.js'
-import { generateWorld } from './worldgen.js'
-import { buildTerrainTexture, renderFrame } from './renderer.js'
-import { Tooltip } from './tooltip.js'
-import { TuningPanel, DEFAULT_PARAMS, DEFAULT_DISPLAY } from './tuning.js'
-import { buildNameDict } from './naming.js'
-import { generateFeatures } from './features.js'
-import { hashSeed } from './utils.js'
+import { TRIPLES, buildGraph } from './concepts.js'
+import { generateMyth } from './myth.js'
+import { renderProse } from './prose.js'
+import { generatePantheon } from './pantheon.js'
+import { buildControls, showEmptyState, displayMyth, displayMythBatch } from './ui.js'
+import { buildExplorer } from './explorer.js'
+import { mulberry32, hashSeed, pick } from './utils.js'
+import { query } from './query.js'
+import { RECIPES } from './recipes/index.js'
 
-const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('main-canvas'))
-const uiLayer = /** @type {HTMLElement} */ (document.getElementById('ui-layer'))
-const tuningContainer = /** @type {HTMLElement} */ (document.getElementById('tuning-panel'))
+const graph = buildGraph(TRIPLES)
 
-// World size in pixels (each grid cell = 10 world units)
-const CELL_SIZE = 10
+// Expose query builder to console for testing
+// @ts-ignore
+window.query = () => query(graph)
 
-let world = generateWorld(DEFAULT_PARAMS)
-let names = buildNameDict(hashSeed(DEFAULT_PARAMS.seed))
-let features = generateFeatures(world.cells, world.width, world.height, DEFAULT_PARAMS)
-let terrainTexture = buildTerrainTexture(world, DEFAULT_DISPLAY)
-const display = { ...DEFAULT_DISPLAY }
+const controls = /** @type {HTMLElement} */ (document.getElementById('controls'))
+const tabsEl   = /** @type {HTMLElement} */ (document.getElementById('tabs'))
+const output   = /** @type {HTMLElement} */ (document.getElementById('output'))
+const explorer = /** @type {HTMLElement} */ (document.getElementById('explorer'))
 
-const tooltip = new Tooltip(uiLayer)
+// ── Tab switching ──
+/**
+ * @param {'generate'|'concepts'} tab
+ */
+function switchTab(tab) {
+  output.hidden = tab !== 'generate'
+  explorer.hidden = tab !== 'concepts'
+  for (const btn of tabsEl.querySelectorAll('.tab-btn')) {
+    btn.classList.toggle('active', /** @type {HTMLElement} */ (btn).dataset['tab'] === tab)
+  }
+  if (tab === 'concepts') {
+    buildExplorer(explorer, TRIPLES)
+  }
+}
 
-const panel = new TuningPanel(tuningContainer, (params) => {
-  world = generateWorld(params)
-  names = buildNameDict(hashSeed(params.seed))
-  features = generateFeatures(world.cells, world.width, world.height, params)
-  terrainTexture = buildTerrainTexture(world, display)
+for (const [id, label] of /** @type {[string, string][]} */ ([['generate', 'generate'], ['concepts', 'concepts']])) {
+  const btn = document.createElement('button')
+  btn.className = 'tab-btn'
+  btn.dataset['tab'] = id
+  btn.textContent = label
+  btn.addEventListener('click', () => switchTab(/** @type {'generate'|'concepts'} */ (id)))
+  tabsEl.appendChild(btn)
+}
+
+switchTab('generate')
+
+// ── Generate tab ──
+buildControls(controls, ({ seed }) => {
+  const myth = generateMyth(graph, seed)
+  const { prose } = renderProse(myth, graph)
+  const pantheon = generatePantheon(graph, myth, mulberry32(hashSeed(seed + '-pantheon')))
+  displayMyth(output, prose, myth, pantheon)
+}, (count) => {
+  // Build recipe schedule: one of each, then random fills for even distribution
+  const recipeNames = RECIPES.map(r => r.name)
+  /** @type {(string|undefined)[]} */
+  const schedule = [...recipeNames]
+  const batchRng = mulberry32(hashSeed(Math.random().toString(36)))
+  while (schedule.length < count) {
+    schedule.push(pick(batchRng, recipeNames))
+  }
+  // Shuffle so the order isn't always the same
+  for (let i = schedule.length - 1; i > 0; i--) {
+    const j = Math.floor(batchRng() * (i + 1));
+    [schedule[i], schedule[j]] = [schedule[j], schedule[i]]
+  }
+
+  const items = []
+  for (let i = 0; i < count; i++) {
+    const seed = Math.random().toString(36).slice(2, 10)
+    const myth = generateMyth(graph, seed, schedule[i])
+    const { prose } = renderProse(myth, graph)
+    const pantheon = generatePantheon(graph, myth, mulberry32(hashSeed(seed + '-pantheon')))
+    items.push({ prose, myth, pantheon })
+  }
+  displayMythBatch(output, items)
 })
 
-const game = new Game(canvas, {
-  update(dt) {
-    const { input, camera } = game
-
-    // WASD / arrow key pan
-    const PAN_SPEED = 400 / camera.scale
-    if (input.isDown('KeyW') || input.isDown('ArrowUp'))    camera.y -= PAN_SPEED * dt
-    if (input.isDown('KeyS') || input.isDown('ArrowDown'))  camera.y += PAN_SPEED * dt
-    if (input.isDown('KeyA') || input.isDown('ArrowLeft'))  camera.x -= PAN_SPEED * dt
-    if (input.isDown('KeyD') || input.isDown('ArrowRight')) camera.x += PAN_SPEED * dt
-
-    // Mouse drag pan
-    if (input.dragging) {
-      camera.pan(input.mouseDeltaX, input.mouseDeltaY)
-    }
-
-    // Scroll wheel or Q/E zoom toward cursor (or screen center for keys)
-    if (input.wheelDelta !== 0) {
-      camera.zoom(input.wheelDelta, input.mouseX, input.mouseY)
-    }
-    const KEY_ZOOM_SPEED = 80
-    if (input.isDown('KeyQ')) camera.zoom( KEY_ZOOM_SPEED, camera.width / 2, camera.height / 2)
-    if (input.isDown('KeyE')) camera.zoom(-KEY_ZOOM_SPEED, camera.width / 2, camera.height / 2)
-
-    // Home key — reset to island center at fit zoom
-    if (input.isPressed('Home') || input.isPressed('Digit0')) {
-      camera.fitToWorld(world.width * CELL_SIZE, world.height * CELL_SIZE)
-    }
-
-    // Clamp camera to world bounds
-    camera.clampToBounds(world.width * CELL_SIZE, world.height * CELL_SIZE)
-
-    // Tooltip — convert mouse screen pos to world cell
-    const worldPos = camera.screenToWorld(input.mouseX, input.mouseY)
-    const cx = Math.floor(worldPos.x / CELL_SIZE)
-    const cy = Math.floor(worldPos.y / CELL_SIZE)
-    const inBounds = cx >= 0 && cx < world.width && cy >= 0 && cy < world.height
-    const cell = inBounds ? world.cells[cy * world.width + cx] : null
-    tooltip.update(input.mouseX, input.mouseY, cx, cy, cell, names)
-  },
-
-  render() {
-    renderFrame(game.ctx, game.camera, terrainTexture, features, display, null)
-  },
-})
-
-// Center camera on island at start
-game.camera.fitToWorld(world.width * CELL_SIZE, world.height * CELL_SIZE)
-game.start()
-
-// Suppress unused variable warnings
-void panel
+showEmptyState(output)
