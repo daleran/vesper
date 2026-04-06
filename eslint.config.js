@@ -13,6 +13,7 @@ export default [
         performance: 'readonly',
         navigator: 'readonly',
         setTimeout: 'readonly',
+        URLSearchParams: 'readonly',
       },
     },
     rules: {

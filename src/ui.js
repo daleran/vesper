@@ -1,8 +1,10 @@
 /**
  * @import { CreationMyth } from './recipes/index.js'
- * @import { Pantheon, Agent } from './pantheon.js'
- * @import { MythicHistory } from './history.js'
+ * @import { Agent } from './pantheon.js'
+ * @import { World, GeogonyData, BiogonyData, AnthropogonyData, ChorogonyData } from './world.js'
+ * @import { HierogonyData } from './hierogony.js'
  */
+import { findAgent } from './world.js'
 
 /**
  * @typedef {{ seed: string }} MythParams
@@ -23,7 +25,7 @@ function randomSeedString() {
  * @param {HTMLElement} container
  * @param {GenerateCallback} onGenerate
  * @param {BatchCallback} [onBatch]
- * @returns {{ getSeed: () => string }}
+ * @returns {{ getSeed: () => string, setSeed: (v: string) => void }}
  */
 export function buildControls(container, onGenerate, onBatch) {
   const title = document.createElement('span')
@@ -72,7 +74,10 @@ export function buildControls(container, onGenerate, onBatch) {
 
   container.append(title, seedGroup, generateBtn, batchBtn)
 
-  return { getSeed: () => seedInput.value }
+  return {
+    getSeed: () => seedInput.value,
+    setSeed: (/** @type {string} */ v) => { seedInput.value = v },
+  }
 }
 
 /**
@@ -87,213 +92,199 @@ export function showEmptyState(container) {
   container.appendChild(empty)
 }
 
-/**
- * Render a myth into the output container.
- * @param {HTMLElement} container
- * @param {string} prose
- * @param {CreationMyth} myth
- * @param {Pantheon} [pantheon]
- * @param {MythicHistory} [history]
- */
-export function displayMyth(container, prose, myth, pantheon, history) {
-  container.innerHTML = ''
-
-  const section = document.createElement('section')
-  section.className = 'myth-section'
-
-  const properNouns = collectProperNouns(pantheon, history)
-
-  const heading = document.createElement('h2')
-  heading.className = 'section-heading'
-  heading.textContent = 'creation myth'
-
-  const headerLine = document.createElement('div')
-  headerLine.className = 'event-header'
-
-  const recipeBadge = document.createElement('span')
-  recipeBadge.className = 'badge badge--recipe'
-  recipeBadge.textContent = myth.recipe
-
-  const copyBtn = document.createElement('button')
-  copyBtn.className = 'small'
-  copyBtn.textContent = 'copy'
-  copyBtn.addEventListener('click', () => {
-    const copyText = `[${myth.seed}]\n${prose}\n\n${formatStructure(myth, pantheon, history)}`
-    navigator.clipboard.writeText(copyText).then(() => {
-      copyBtn.textContent = 'copied!'
-      setTimeout(() => { copyBtn.textContent = 'copy' }, 1500)
-    })
-  })
-
-  headerLine.append(recipeBadge, copyBtn)
-
-  const text = document.createElement('p')
-  text.className = 'myth-text'
-  text.innerHTML = highlightProperNouns(prose, properNouns)
-
-  section.append(heading, headerLine, text)
-
-  if (pantheon) {
-    section.appendChild(renderPantheon(pantheon))
-  }
-
-  if (history && history.events.length > 0) {
-    section.appendChild(renderHistory(history, properNouns))
-    section.appendChild(renderRegions(history))
-  }
-
-  container.appendChild(section)
-
-  // Collapsible structure panel
-  const structureSection = document.createElement('div')
-  structureSection.className = 'structure-section'
-
-  const toggle = document.createElement('button')
-  toggle.className = 'structure-toggle'
-  toggle.textContent = '▶ show structure'
-
-  const body = document.createElement('div')
-  body.className = 'structure-body'
-  body.textContent = formatStructure(myth, pantheon, history)
-
-  toggle.addEventListener('click', () => {
-    const open = body.classList.toggle('open')
-    toggle.textContent = open ? '▼ hide structure' : '▶ show structure'
-  })
-
-  structureSection.append(toggle, body)
-  container.appendChild(structureSection)
-}
+// ── Shared helpers ──
 
 /**
- * Render a batch of myths into the output container.
- * @param {HTMLElement} container
- * @param {{ prose: string, myth: CreationMyth, pantheon?: Pantheon, history?: MythicHistory }[]} items
- */
-export function displayMythBatch(container, items) {
-  container.innerHTML = ''
-
-  // Batch toolbar: expand/collapse all + copy all
-  const toolbar = document.createElement('div')
-  toolbar.className = 'batch-toolbar'
-
-  const expandAllBtn = document.createElement('button')
-  expandAllBtn.className = 'small'
-  expandAllBtn.textContent = 'expand all'
-
-  const collapseAllBtn = document.createElement('button')
-  collapseAllBtn.className = 'small'
-  collapseAllBtn.textContent = 'collapse all'
-
-  const copyAllBtn = document.createElement('button')
-  copyAllBtn.className = 'small'
-  copyAllBtn.textContent = 'copy all'
-
-  expandAllBtn.addEventListener('click', () => {
-    for (const body of container.querySelectorAll('.structure-body')) {
-      body.classList.add('open')
-    }
-    for (const tog of container.querySelectorAll('.structure-toggle')) {
-      tog.textContent = '▼ hide structure'
-    }
-  })
-
-  collapseAllBtn.addEventListener('click', () => {
-    for (const body of container.querySelectorAll('.structure-body')) {
-      body.classList.remove('open')
-    }
-    for (const tog of container.querySelectorAll('.structure-toggle')) {
-      tog.textContent = '▶ show structure'
-    }
-  })
-
-  copyAllBtn.addEventListener('click', () => {
-    const parts = items.map(({ prose, myth, pantheon, history }) =>
-      `[${myth.seed}]\n${prose}\n\n${formatStructure(myth, pantheon, history)}`
-    )
-    navigator.clipboard.writeText(parts.join('\n\n---\n\n')).then(() => {
-      copyAllBtn.textContent = 'copied!'
-      setTimeout(() => { copyAllBtn.textContent = 'copy all' }, 1500)
-    })
-  })
-
-  toolbar.append(expandAllBtn, collapseAllBtn, copyAllBtn)
-  container.appendChild(toolbar)
-
-  for (const { prose, myth, pantheon, history } of items) {
-    const card = document.createElement('section')
-    card.className = 'myth-section myth-card'
-
-    const seedTag = document.createElement('span')
-    seedTag.className = 'badge badge--seed'
-    seedTag.textContent = myth.seed
-
-    const recipeBadge = document.createElement('span')
-    recipeBadge.className = 'badge badge--recipe'
-    recipeBadge.textContent = myth.recipe
-
-    const properNouns = collectProperNouns(pantheon, history)
-
-    const text = document.createElement('p')
-    text.className = 'myth-text'
-    text.innerHTML = highlightProperNouns(prose, properNouns)
-
-    card.append(seedTag, recipeBadge, text)
-
-    if (pantheon) {
-      card.appendChild(renderPantheon(pantheon))
-    }
-
-    if (history && history.events.length > 0) {
-      card.appendChild(renderHistory(history, properNouns))
-      card.appendChild(renderRegions(history))
-    }
-
-    const structureSection = document.createElement('div')
-    structureSection.className = 'structure-section'
-
-    const toggle = document.createElement('button')
-    toggle.className = 'structure-toggle'
-    toggle.textContent = '▶ show structure'
-
-    const body = document.createElement('div')
-    body.className = 'structure-body'
-    body.textContent = formatStructure(myth, pantheon, history)
-
-    toggle.addEventListener('click', () => {
-      const open = body.classList.toggle('open')
-      toggle.textContent = open ? '▼ hide structure' : '▶ show structure'
-    })
-
-    structureSection.append(toggle, body)
-    card.appendChild(structureSection)
-    container.appendChild(card)
-  }
-}
-
-/**
- * Render a pantheon as a DOM element displayed below the myth.
- * @param {Pantheon} pantheon
+ * Create a labeled meta row (label: value).
+ * @param {string} label
+ * @param {string} value
  * @returns {HTMLElement}
  */
-function renderPantheon(pantheon) {
-  const container = document.createElement('div')
-  container.className = 'divider-section'
+function createMetaRow(label, value) {
+  const row = document.createElement('div')
+  row.className = 'meta-row'
+  const lbl = document.createElement('span')
+  lbl.className = 'meta-label'
+  lbl.textContent = label
+  const val = document.createElement('span')
+  val.className = 'meta-value'
+  val.textContent = value
+  row.append(lbl, val)
+  return row
+}
 
-  const heading = document.createElement('h3')
-  heading.className = 'section-heading'
-  heading.textContent = 'pantheon'
-  container.appendChild(heading)
+/**
+ * Render a beat's roles as a definition list + concepts as badge row.
+ * @param {string} beatName
+ * @param {{ roles: Record<string, string>, concepts: string[] }} beat
+ * @returns {HTMLElement}
+ */
+function renderBeat(beatName, beat) {
+  const section = document.createElement('div')
+  section.className = 'beat-section'
 
-  for (let i = 0; i < pantheon.agents.length; i++) {
-    const agent = pantheon.agents[i]
-    container.appendChild(renderAgent(agent, i, pantheon.agents))
+  const heading = document.createElement('h4')
+  heading.className = 'beat-heading'
+  heading.textContent = beatName
+
+  const dl = document.createElement('dl')
+  dl.className = 'beat-roles'
+  for (const [key, val] of Object.entries(beat.roles)) {
+    const dt = document.createElement('dt')
+    dt.className = 'beat-role-key'
+    dt.textContent = key
+
+    const dd = document.createElement('dd')
+    dd.className = 'beat-role-value'
+    dd.textContent = val
+
+    dl.append(dt, dd)
   }
 
-  if (pantheon.tensions.length > 0) {
+  section.append(heading, dl)
+
+  if (beat.concepts.length > 0) {
+    const row = document.createElement('div')
+    row.className = 'concept-row'
+    for (const c of beat.concepts) {
+      const tag = document.createElement('span')
+      tag.className = 'concept-tag'
+      tag.textContent = c
+      row.appendChild(tag)
+    }
+    section.appendChild(row)
+  }
+
+  return section
+}
+
+/**
+ * Create a collapsible JSON toggle for a data object.
+ * @param {object} data
+ * @returns {HTMLElement}
+ */
+function createJsonToggle(data) {
+  const wrapper = document.createElement('div')
+  wrapper.className = 'json-section'
+
+  const toggle = document.createElement('button')
+  toggle.className = 'json-toggle'
+  toggle.textContent = '{ } json'
+
+  const body = document.createElement('pre')
+  body.className = 'json-body'
+
+  let loaded = false
+  toggle.addEventListener('click', () => {
+    if (!loaded) {
+      body.textContent = JSON.stringify(data, null, 2)
+      loaded = true
+    }
+    const open = body.classList.toggle('open')
+    toggle.classList.toggle('open', open)
+  })
+
+  wrapper.append(toggle, body)
+  return wrapper
+}
+
+/**
+ * Create a layer panel (collapsible details element).
+ * @param {string} title
+ * @param {boolean} [open]
+ * @returns {{ panel: HTMLDetailsElement, body: HTMLDivElement }}
+ */
+function createLayerPanel(title, open = true) {
+  const panel = document.createElement('details')
+  panel.className = 'layer-panel'
+  panel.open = open
+
+  const summary = document.createElement('summary')
+  summary.className = 'layer-heading'
+  summary.textContent = title
+
+  const body = document.createElement('div')
+  body.className = 'layer-body'
+
+  panel.append(summary, body)
+  return { panel, body }
+}
+
+// ── Layer 0: Cosmogony ──
+
+/**
+ * Render Layer 0 cosmogony data.
+ * @param {CreationMyth} myth
+ * @returns {HTMLElement}
+ */
+function renderCosmogony(myth) {
+  const container = document.createElement('div')
+
+  // World transition
+  const transition = document.createElement('div')
+  transition.className = 'world-transition'
+  transition.textContent = `${myth.worldBefore} \u2192 ${myth.worldAfter}`
+  container.appendChild(transition)
+
+  // Four beats
+  for (const [name, beat] of /** @type {[string, { roles: Record<string,string>, concepts: string[] }][]} */ ([
+    ['before', myth.before],
+    ['act', myth.act],
+    ['cost', myth.cost],
+    ['flaw', myth.flaw],
+  ])) {
+    container.appendChild(renderBeat(name, beat))
+  }
+
+  // Creators / important / bad
+  const meta = document.createElement('div')
+  meta.className = 'myth-meta'
+
+  for (const [label, items] of /** @type {[string, string[]][]} */ ([
+    ['creators', myth.creators],
+    ['important', myth.important],
+    ['bad', myth.bad],
+    ['ingredients', myth.ingredients],
+  ])) {
+    if (items.length > 0) {
+      meta.appendChild(createMetaRow(label, items.join(', ')))
+    }
+  }
+
+  container.appendChild(meta)
+
+  // Extra fields
+  if (Object.keys(myth.extra).length > 0) {
+    const extra = document.createElement('div')
+    extra.className = 'myth-meta'
+    for (const [k, v] of Object.entries(myth.extra)) {
+      extra.appendChild(createMetaRow(k, Array.isArray(v) ? v.join(', ') : String(v)))
+    }
+    container.appendChild(extra)
+  }
+
+  return container
+}
+
+// ── Layer 1: Theogony ──
+
+/**
+ * Render a pantheon as a DOM element.
+ * @param {World} world
+ * @returns {HTMLElement}
+ */
+function renderPantheon(world) {
+  const container = document.createElement('div')
+  const pantheonAgents = world.agents.filter(a => a.origin === 'pantheon')
+
+  for (const agent of pantheonAgents) {
+    container.appendChild(renderAgent(agent, world))
+  }
+
+  if (world.tensions.length > 0) {
     const tensionEl = document.createElement('p')
     tensionEl.className = 'pantheon-tensions'
-    tensionEl.textContent = `tensions: ${pantheon.tensions.map(t => t.replace(':', ' / ')).join(', ')}`
+    tensionEl.textContent = `tensions: ${world.tensions.map(t => t.replace(':', ' / ')).join(', ')}`
     container.appendChild(tensionEl)
   }
 
@@ -303,12 +294,10 @@ function renderPantheon(pantheon) {
 /**
  * Render a single agent as a compact DOM element.
  * @param {Agent} agent
- * @param {number} index
- * @param {Agent[]} allAgents
+ * @param {World} world
  * @returns {HTMLElement}
  */
-function renderAgent(agent, index, allAgents) {
-  void index
+function renderAgent(agent, world) {
   const el = document.createElement('div')
   el.className = 'agent-card'
 
@@ -340,99 +329,25 @@ function renderAgent(agent, index, allAgents) {
     `role: ${agent.mythRole}`,
     `state: ${stateText}`,
     agent.relationships.length > 0
-      ? agent.relationships.map(r => `${r.kind} of ${allAgents[r.target]?.name ?? '?'}`).join(', ')
+      ? agent.relationships.map(r => `${r.kind} of ${findAgent(world, r.target)?.name ?? '?'}`).join(', ')
       : '',
-  ].filter(Boolean).join(' · ')
+  ].filter(Boolean).join(' \u00b7 ')
 
   el.appendChild(details)
   return el
-}
-
-// ── Proper noun highlighting ──
-
-/**
- * Collect all proper nouns (agent names, region names) from pantheon and history.
- * @param {Pantheon} [pantheon]
- * @param {MythicHistory} [history]
- * @returns {string[]}
- */
-function collectProperNouns(pantheon, history) {
-  /** @type {string[]} */
-  const names = []
-  if (pantheon) {
-    for (const agent of pantheon.agents) {
-      if (agent.name) names.push(agent.name)
-    }
-  }
-  if (history) {
-    for (const region of history.regions) {
-      if (region.name) names.push(region.name)
-    }
-    for (const agent of history.spawnedAgents) {
-      if (agent.name) names.push(agent.name)
-    }
-  }
-  // Sort longest first so longer names match before shorter substrings
-  names.sort((a, b) => b.length - a.length)
-  return names
-}
-
-/**
- * Escape a string for use in a regex.
- * @param {string} s
- * @returns {string}
- */
-function escapeRegex(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-/**
- * Replace proper nouns in text with styled HTML spans.
- * Returns HTML string safe for innerHTML (text is escaped first).
- * @param {string} text
- * @param {string[]} properNouns
- * @returns {string}
- */
-function highlightProperNouns(text, properNouns) {
-  if (properNouns.length === 0) return escapeHtml(text)
-  const pattern = new RegExp(`(${properNouns.map(escapeRegex).join('|')})`, 'g')
-  // Split on proper nouns, escape each segment, wrap matches in spans
-  const parts = text.split(pattern)
-  const nounSet = new Set(properNouns)
-  return parts.map(part =>
-    nounSet.has(part)
-      ? `<span class="proper-noun">${escapeHtml(part)}</span>`
-      : escapeHtml(part)
-  ).join('')
-}
-
-/**
- * Escape HTML special characters.
- * @param {string} s
- * @returns {string}
- */
-function escapeHtml(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 // ── History and Region rendering ──
 
 /**
  * Render mythic history as a timeline section.
- * @param {MythicHistory} history
- * @param {string[]} properNouns
+ * @param {World} world
  * @returns {HTMLElement}
  */
-function renderHistory(history, properNouns) {
+function renderHistory(world) {
   const container = document.createElement('div')
-  container.className = 'divider-section'
 
-  const heading = document.createElement('h3')
-  heading.className = 'section-heading'
-  heading.textContent = 'mythic history'
-  container.appendChild(heading)
-
-  for (const event of history.events) {
+  for (const event of world.events) {
     const card = document.createElement('div')
     card.className = 'event-card'
 
@@ -441,16 +356,19 @@ function renderHistory(history, properNouns) {
 
     const badge = document.createElement('span')
     badge.className = `badge badge--${event.archetype}`
-    badge.textContent = event.archetype
+    badge.textContent = `${event.index}: ${event.archetype}`
 
     headerLine.appendChild(badge)
     card.appendChild(headerLine)
 
-    if (event.prose) {
-      const prose = document.createElement('p')
-      prose.className = 'event-prose'
-      prose.innerHTML = highlightProperNouns(event.prose, properNouns)
-      card.appendChild(prose)
+    // Event beats
+    for (const [name, beat] of /** @type {[string, { roles: Record<string,string>, concepts: string[] }][]} */ ([
+      ['situation', event.situation],
+      ['action', event.action],
+      ['consequence', event.consequence],
+      ['legacy', event.legacy],
+    ])) {
+      card.appendChild(renderBeat(name, beat))
     }
 
     // Agent state changes
@@ -458,15 +376,14 @@ function renderHistory(history, properNouns) {
     if (changes.length > 0) {
       const changesEl = document.createElement('div')
       changesEl.className = 'event-changes'
-      const allAgents = [...history.agents, ...history.spawnedAgents]
       changesEl.textContent = changes.map(c => {
-        const agent = allAgents[c.agentIndex]
+        const agent = findAgent(world, c.agentId)
         const name = agent?.name ?? '?'
         const parts = []
         if (c.newState) parts.push(c.newState)
         if (c.newType) parts.push(`became ${c.newType}`)
         return `${name}: ${parts.join(', ')}`
-      }).join(' · ')
+      }).join(' \u00b7 ')
       card.appendChild(changesEl)
     }
 
@@ -479,7 +396,7 @@ function renderHistory(history, properNouns) {
         const domain = c.spawned?.domains[0] ?? '?'
         const type = c.spawned?.type ?? '?'
         return `spawned: ${domain} (${type})`
-      }).join(' · ')
+      }).join(' \u00b7 ')
       card.appendChild(spawnsEl)
     }
 
@@ -488,7 +405,7 @@ function renderHistory(history, properNouns) {
       const regionsEl = document.createElement('div')
       regionsEl.className = 'event-regions'
       const regionNames = event.regionTags.map(id => {
-        const region = history.regions.find(r => r.id === id)
+        const region = world.regions.find(r => r.id === id)
         return region?.name || id
       })
       regionsEl.textContent = `regions: ${regionNames.join(', ')}`
@@ -503,19 +420,13 @@ function renderHistory(history, properNouns) {
 
 /**
  * Render regions as cards.
- * @param {MythicHistory} history
+ * @param {World} world
  * @returns {HTMLElement}
  */
-function renderRegions(history) {
+function renderRegions(world) {
   const container = document.createElement('div')
-  container.className = 'divider-section'
 
-  const heading = document.createElement('h3')
-  heading.className = 'section-heading'
-  heading.textContent = 'regions'
-  container.appendChild(heading)
-
-  for (const region of history.regions) {
+  for (const region of world.regions) {
     const card = document.createElement('div')
     card.className = 'region-card'
 
@@ -538,75 +449,807 @@ function renderRegions(history) {
   return container
 }
 
-// ── Structure formatting ──
+// ── Layer 2: Geogony ──
 
 /**
- * Format a creation myth as readable debug text.
- * @param {CreationMyth} myth
- * @param {Pantheon} [pantheon]
- * @param {MythicHistory} [history]
- * @returns {string}
+ * Render geogony data as a DOM element.
+ * @param {GeogonyData} geogony
+ * @param {World} world
+ * @returns {HTMLElement}
  */
-function formatStructure(myth, pantheon, history) {
-  const lines = []
-  lines.push(`seed: ${myth.seed}`)
-  lines.push(`recipe: ${myth.recipe}`)
-  lines.push('')
-  const fmtRoles = (/** @type {Record<string, string>} */ r) =>
-    Object.entries(r).map(([k, v]) => `${k}=${v}`).join(', ')
-  lines.push(`before: ${fmtRoles(myth.before.roles)}`)
-  lines.push(`act: ${fmtRoles(myth.act.roles)}`)
-  lines.push(`cost: ${fmtRoles(myth.cost.roles)}`)
-  lines.push(`flaw: ${fmtRoles(myth.flaw.roles)}`)
-  lines.push('')
-  lines.push(`creators: ${myth.creators.join(', ')}`)
-  lines.push(`important: ${myth.important.join(', ')}`)
-  lines.push(`bad: ${myth.bad.join(', ')}`)
-  lines.push(`before: ${myth.worldBefore}`)
-  lines.push(`after: ${myth.worldAfter}`)
-  lines.push(`ingredients: ${myth.ingredients.join(', ')}`)
-  if (Object.keys(myth.extra).length > 0) {
-    lines.push('')
-    for (const [k, v] of Object.entries(myth.extra)) {
-      lines.push(`${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
+function renderGeogony(geogony, world) {
+  const container = document.createElement('div')
+
+  // World name
+  const worldNameEl = document.createElement('div')
+  worldNameEl.className = 'world-name'
+  worldNameEl.textContent = geogony.worldName
+  container.appendChild(worldNameEl)
+
+  // Recipe + shape badges
+  const badgeRow = document.createElement('div')
+  badgeRow.className = 'seed-header'
+  const recipeBadge = document.createElement('span')
+  recipeBadge.className = 'badge badge--recipe'
+  recipeBadge.textContent = geogony.recipe
+  const shapeBadge = document.createElement('span')
+  shapeBadge.className = 'badge badge--seed'
+  shapeBadge.textContent = geogony.worldShape
+  badgeRow.append(recipeBadge, shapeBadge)
+  container.appendChild(badgeRow)
+
+  // Substances row
+  const substMeta = document.createElement('div')
+  substMeta.className = 'myth-meta'
+  for (const [label, val] of /** @type {[string, string][]} */ ([
+    ['ground', geogony.groundSubstance],
+    ['water', geogony.waterSubstance],
+    ['sky', geogony.skySubstance],
+  ])) {
+    substMeta.appendChild(createMetaRow(label, val))
+  }
+
+  // Causing agent
+  if (geogony.causingAgentId !== null) {
+    const agent = findAgent(world, geogony.causingAgentId)
+    if (agent) {
+      substMeta.appendChild(createMetaRow('shaped by', agent.name))
     }
   }
-  if (pantheon) {
-    lines.push('')
-    lines.push('── pantheon ──')
-    for (const agent of pantheon.agents) {
-      const rels = agent.relationships.map(r => `${r.kind}→${pantheon.agents[r.target]?.name ?? '?'}`).join(', ')
-      lines.push(`${agent.name} "${agent.title}" [${agent.type}] ${agent.state} — ${agent.disposition} — ${agent.domains.join(', ')}${rels ? ` — ${rels}` : ''}`)
-    }
-    if (pantheon.tensions.length > 0) {
-      lines.push(`tensions: ${pantheon.tensions.join(', ')}`)
+
+  // Materials + climate
+  if (geogony.materials.length > 0) {
+    substMeta.appendChild(createMetaRow('materials', geogony.materials.join(', ')))
+  }
+
+  if (geogony.climate.length > 0) {
+    substMeta.appendChild(createMetaRow('climate', geogony.climate.join(', ')))
+  }
+
+  container.appendChild(substMeta)
+
+  // Terrain types
+  if (geogony.terrainTypes.length > 0) {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'terrain types'
+    container.appendChild(heading)
+
+    for (const terrain of geogony.terrainTypes) {
+      const card = document.createElement('div')
+      card.className = 'region-card'
+
+      const name = document.createElement('span')
+      name.className = 'region-name'
+      name.textContent = terrain.name
+
+      const concepts = document.createElement('span')
+      concepts.className = 'region-concepts'
+      concepts.textContent = terrain.concepts.join(', ')
+
+      const detail = document.createElement('span')
+      detail.className = 'region-tagged-by'
+      detail.textContent = `${terrain.shape} \u00b7 ${terrain.substance} \u00b7 ${terrain.causedBy}`
+
+      card.append(name, concepts, detail)
+      container.appendChild(card)
     }
   }
-  if (history && history.events.length > 0) {
-    lines.push('')
-    lines.push('── mythic history ──')
-    for (const event of history.events) {
-      lines.push(`event ${event.index}: ${event.archetype}`)
-      lines.push(`  situation: ${fmtRoles(event.situation.roles)}`)
-      lines.push(`  action: ${fmtRoles(event.action.roles)}`)
-      lines.push(`  consequence: ${fmtRoles(event.consequence.roles)}`)
-      lines.push(`  legacy: ${fmtRoles(event.legacy.roles)}`)
-      if (event.regionTags.length > 0) {
-        lines.push(`  regions: ${event.regionTags.join(', ')}`)
+
+  // Landmarks
+  if (geogony.landmarks.length > 0) {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'landmarks'
+    container.appendChild(heading)
+
+    for (const landmark of geogony.landmarks) {
+      const card = document.createElement('div')
+      card.className = 'region-card'
+
+      const name = document.createElement('span')
+      name.className = 'region-name'
+      name.textContent = landmark.name
+
+      const concepts = document.createElement('span')
+      concepts.className = 'region-concepts'
+      concepts.textContent = landmark.concepts.join(', ')
+
+      const detail = document.createElement('span')
+      detail.className = 'region-tagged-by'
+      const agentName = landmark.agentId !== null ? findAgent(world, landmark.agentId)?.name : null
+      const parts = [landmark.origin]
+      if (agentName) parts.push(agentName)
+      if (landmark.regionId) parts.push(landmark.regionId)
+      detail.textContent = parts.join(' \u00b7 ')
+
+      card.append(name, concepts, detail)
+      container.appendChild(card)
+    }
+  }
+
+  // Landscape agents
+  const landscapeAgents = world.agents.filter(a => a.origin === 'landscape')
+  if (landscapeAgents.length > 0) {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'landscape spirits'
+    container.appendChild(heading)
+
+    for (const agent of landscapeAgents) {
+      container.appendChild(renderAgent(agent, world))
+    }
+  }
+
+  return container
+}
+
+// ── Layer 3: Biogony ──
+
+/**
+ * Render biogony data as a DOM element.
+ * @param {BiogonyData} biogony
+ * @param {World} world
+ * @returns {HTMLElement}
+ */
+function renderBiogony(biogony, world) {
+  const container = document.createElement('div')
+
+  // Recipe badge
+  const badgeRow = document.createElement('div')
+  badgeRow.className = 'seed-header'
+  const recipeBadge = document.createElement('span')
+  recipeBadge.className = 'badge badge--recipe'
+  recipeBadge.textContent = biogony.recipe
+  badgeRow.appendChild(recipeBadge)
+  container.appendChild(badgeRow)
+
+  // Origin agent
+  const meta = document.createElement('div')
+  meta.className = 'myth-meta'
+
+  if (biogony.lifeOriginAgent !== null) {
+    const agent = findAgent(world, biogony.lifeOriginAgent)
+    if (agent) {
+      meta.appendChild(createMetaRow('life created by', agent.name))
+    }
+  }
+
+  container.appendChild(meta)
+
+  // Lifeforms
+  if (biogony.lifeforms.length > 0) {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'lifeforms'
+    container.appendChild(heading)
+
+    for (const lf of biogony.lifeforms) {
+      const card = document.createElement('div')
+      card.className = 'region-card'
+
+      const name = document.createElement('span')
+      name.className = 'region-name'
+      name.textContent = lf.name
+
+      const concepts = document.createElement('span')
+      concepts.className = 'region-concepts'
+      concepts.textContent = lf.concepts.join(', ')
+
+      const detail = document.createElement('span')
+      detail.className = 'region-tagged-by'
+      const parts = [lf.behavior, lf.origin]
+      if (lf.terrainAffinity.length > 0) {
+        parts.push(lf.terrainAffinity.join(', '))
       }
-    }
-    lines.push('')
-    lines.push('── regions ──')
-    for (const region of history.regions) {
-      lines.push(`${region.name} [${region.id}]: ${region.concepts.join(', ')}`)
-    }
-    if (history.spawnedAgents.length > 0) {
-      lines.push('')
-      lines.push('── spawned agents ──')
-      for (const agent of history.spawnedAgents) {
-        lines.push(`${agent.name} [${agent.type}] ${agent.state} — ${agent.domains.join(', ')}`)
-      }
+      detail.textContent = parts.join(' \u00b7 ')
+
+      card.append(name, concepts, detail)
+      container.appendChild(card)
     }
   }
-  return lines.join('\n')
+
+  // Flaw life
+  if (biogony.flawLife.length > 0) {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'flaw life'
+    container.appendChild(heading)
+
+    const row = document.createElement('div')
+    row.className = 'concept-row'
+    for (const lf of biogony.flawLife) {
+      const tag = document.createElement('span')
+      tag.className = 'concept-tag'
+      tag.textContent = `${lf.name} (${lf.behavior})`
+      row.appendChild(tag)
+    }
+    container.appendChild(row)
+  }
+
+  // Extinctions
+  if (biogony.extinctions.length > 0) {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'extinctions'
+    container.appendChild(heading)
+
+    const row = document.createElement('div')
+    row.className = 'concept-row'
+    for (const ext of biogony.extinctions) {
+      const tag = document.createElement('span')
+      tag.className = 'concept-tag'
+      tag.textContent = ext
+      row.appendChild(tag)
+    }
+    container.appendChild(row)
+  }
+
+  return container
+}
+
+// ── Layer 4: Anthropogony ──
+
+/**
+ * Render anthropogony data as a DOM element.
+ * @param {AnthropogonyData} anthropogony
+ * @param {World} world
+ * @returns {HTMLElement}
+ */
+function renderAnthropogony(anthropogony, world) {
+  const container = document.createElement('div')
+
+  // Recipe badge
+  const badgeRow = document.createElement('div')
+  badgeRow.className = 'seed-header'
+  const recipeBadge = document.createElement('span')
+  recipeBadge.className = 'badge badge--recipe'
+  recipeBadge.textContent = anthropogony.recipe
+  badgeRow.appendChild(recipeBadge)
+  container.appendChild(badgeRow)
+
+  // Common memory + disputes meta
+  const meta = document.createElement('div')
+  meta.className = 'myth-meta'
+
+  if (anthropogony.commonMemory.length > 0) {
+    meta.appendChild(createMetaRow('common memory', anthropogony.commonMemory.join(', ')))
+  }
+
+  if (anthropogony.disputes.length > 0) {
+    meta.appendChild(createMetaRow('disputes', anthropogony.disputes.join(', ')))
+  }
+
+  container.appendChild(meta)
+
+  // Peoples
+  if (anthropogony.peoples.length > 0) {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'peoples'
+    container.appendChild(heading)
+
+    for (const people of anthropogony.peoples) {
+      const card = document.createElement('div')
+      card.className = 'region-card'
+
+      // Name + origin
+      const nameLine = document.createElement('div')
+      nameLine.className = 'agent-name-line'
+
+      const name = document.createElement('span')
+      name.className = 'region-name'
+      name.textContent = people.name
+
+      const originBadge = document.createElement('span')
+      originBadge.className = 'badge badge--seed'
+      originBadge.textContent = people.origin
+
+      nameLine.append(name, originBadge)
+      card.appendChild(nameLine)
+
+      // Agents
+      const agentMeta = document.createElement('div')
+      agentMeta.className = 'agent-details'
+      const agentParts = []
+      if (people.creatorAgent) {
+        const agent = findAgent(world, people.creatorAgent)
+        if (agent) agentParts.push(`creator: ${agent.name}`)
+      }
+      if (people.patronAgent) {
+        const agent = findAgent(world, people.patronAgent)
+        if (agent) agentParts.push(`patron: ${agent.name}`)
+      }
+      if (agentParts.length > 0) {
+        agentMeta.textContent = agentParts.join(' \u00b7 ')
+        card.appendChild(agentMeta)
+      }
+
+      // Purpose, gift, flaw
+      const traitMeta = document.createElement('div')
+      traitMeta.className = 'agent-details'
+      traitMeta.textContent = `purpose: ${people.purpose} \u00b7 gift: ${people.gift} \u00b7 flaw: ${people.flaw}`
+      card.appendChild(traitMeta)
+
+      // Terrain affinity
+      if (people.terrainAffinity.length > 0) {
+        const terrainEl = document.createElement('div')
+        terrainEl.className = 'agent-details'
+        terrainEl.textContent = `terrain: ${people.terrainAffinity.join(', ')}`
+        card.appendChild(terrainEl)
+      }
+
+      // Remembers + fears
+      const memEl = document.createElement('div')
+      memEl.className = 'agent-details'
+      const memParts = []
+      if (people.remembers.length > 0) memParts.push(`remembers: ${people.remembers.join(', ')}`)
+      if (people.fears.length > 0) memParts.push(`fears: ${people.fears.join(', ')}`)
+      if (memParts.length > 0) {
+        memEl.textContent = memParts.join(' \u00b7 ')
+        card.appendChild(memEl)
+      }
+
+      // Physical traits
+      const traits = people.physicalTraits
+      const traitParts = []
+      if (traits.texture) traitParts.push(traits.texture)
+      if (traits.shape) traitParts.push(traits.shape)
+      if (traits.color) traitParts.push(traits.color)
+      if (traitParts.length > 0) {
+        const traitEl = document.createElement('div')
+        traitEl.className = 'agent-details'
+        traitEl.textContent = `physical: ${traitParts.join(', ')}`
+        card.appendChild(traitEl)
+      }
+
+      // Concept cluster
+      const concepts = document.createElement('span')
+      concepts.className = 'region-concepts'
+      concepts.textContent = people.concepts.join(', ')
+      card.appendChild(concepts)
+
+      container.appendChild(card)
+    }
+  }
+
+  return container
+}
+
+// ── Layer 5: Chorogony ──
+
+/**
+ * Render a labeled tag row (label + concept badges).
+ * @param {string} label
+ * @param {string[]} items
+ * @returns {HTMLElement|null}
+ */
+function renderTagRow(label, items) {
+  if (items.length === 0) return null
+  const row = document.createElement('div')
+  row.className = 'agent-details'
+  row.textContent = `${label}: ${items.join(', ')}`
+  return row
+}
+
+/**
+ * Render chorogony data as a DOM element.
+ * @param {ChorogonyData} chorogony
+ * @param {World} _world
+ * @returns {HTMLElement}
+ */
+function renderChorogony(chorogony, _world) {
+  const container = document.createElement('div')
+
+  for (const region of chorogony.regions) {
+    const card = document.createElement('div')
+    card.className = 'region-card'
+
+    // Name
+    const name = document.createElement('span')
+    name.className = 'region-name'
+    name.textContent = region.name
+    card.appendChild(name)
+
+    // Concepts
+    const concepts = document.createElement('span')
+    concepts.className = 'region-concepts'
+    concepts.textContent = region.concepts.join(', ')
+    card.appendChild(concepts)
+
+    // Terrain, peoples, lifeforms, landmarks, resources, dangers, mood, climate
+    for (const [label, items] of /** @type {[string, string[]][]} */ ([
+      ['terrain', region.terrainTypes],
+      ['peoples', region.peoples],
+      ['lifeforms', region.lifeforms],
+      ['landmarks', region.landmarks],
+      ['resources', region.resources],
+      ['dangers', region.dangers],
+      ['mood', region.mood],
+      ['climate', region.climate],
+    ])) {
+      const row = renderTagRow(label, items)
+      if (row) card.appendChild(row)
+    }
+
+    // Tagged by events
+    if (region.taggedBy.length > 0) {
+      const taggedEl = document.createElement('span')
+      taggedEl.className = 'region-tagged-by'
+      taggedEl.textContent = `events: ${region.taggedBy.join(', ')}`
+      card.appendChild(taggedEl)
+    }
+
+    container.appendChild(card)
+  }
+
+  return container
+}
+
+/**
+ * Render hierogony data as a DOM element.
+ * @param {HierogonyData} hierogony
+ * @param {World} world
+ * @returns {HTMLElement}
+ */
+function renderHierogony(hierogony, world) {
+  const container = document.createElement('div')
+
+  // Recipe badge
+  const badgeRow = document.createElement('div')
+  badgeRow.className = 'seed-header'
+  const recipeBadge = document.createElement('span')
+  recipeBadge.className = 'badge badge--recipe'
+  recipeBadge.textContent = hierogony.recipe
+  badgeRow.appendChild(recipeBadge)
+  container.appendChild(badgeRow)
+
+  // Religions
+  if (hierogony.religions.length > 0) {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'religions'
+    container.appendChild(heading)
+
+    for (const religion of hierogony.religions) {
+      const card = document.createElement('div')
+      card.className = 'region-card'
+
+      // Name + origin
+      const nameLine = document.createElement('div')
+      nameLine.className = 'agent-name-line'
+      const name = document.createElement('span')
+      name.className = 'region-name'
+      name.textContent = religion.name
+      const originBadge = document.createElement('span')
+      originBadge.className = 'badge badge--seed'
+      originBadge.textContent = religion.originEvent
+      nameLine.append(name, originBadge)
+      card.appendChild(nameLine)
+
+      // Worshipped agents
+      if (religion.worshippedAgents.length > 0) {
+        const agentNames = religion.worshippedAgents
+          .map(id => findAgent(world, id)?.name ?? id)
+          .join(', ')
+        const row = renderTagRow('worships', [agentNames])
+        if (row) card.appendChild(row)
+      }
+
+      // Peoples
+      const peoplesRow = renderTagRow('peoples', religion.peoples)
+      if (peoplesRow) card.appendChild(peoplesRow)
+
+      // Rites and taboos
+      const ritesRow = renderTagRow('rites', religion.rites)
+      if (ritesRow) card.appendChild(ritesRow)
+      const taboosRow = renderTagRow('taboos', religion.taboos)
+      if (taboosRow) card.appendChild(taboosRow)
+
+      // Concepts
+      const concepts = document.createElement('span')
+      concepts.className = 'region-concepts'
+      concepts.textContent = religion.concepts.join(', ')
+      card.appendChild(concepts)
+
+      container.appendChild(card)
+    }
+  }
+
+  // Heresies
+  if (hierogony.heresies.length > 0) {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'heresies'
+    container.appendChild(heading)
+
+    for (const heresy of hierogony.heresies) {
+      const card = document.createElement('div')
+      card.className = 'region-card'
+
+      const nameLine = document.createElement('div')
+      nameLine.className = 'agent-name-line'
+      const name = document.createElement('span')
+      name.className = 'region-name'
+      name.textContent = heresy.name
+      const originBadge = document.createElement('span')
+      originBadge.className = 'badge badge--seed'
+      originBadge.textContent = heresy.origin
+      nameLine.append(name, originBadge)
+      card.appendChild(nameLine)
+
+      const deniesRow = renderTagRow('denies', heresy.denies)
+      if (deniesRow) card.appendChild(deniesRow)
+      const claimsRow = renderTagRow('claims', heresy.claims)
+      if (claimsRow) card.appendChild(claimsRow)
+
+      container.appendChild(card)
+    }
+  }
+
+  // Sacred sites
+  if (hierogony.sacredSites.length > 0) {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'sacred sites'
+    container.appendChild(heading)
+
+    for (const site of hierogony.sacredSites) {
+      const card = document.createElement('div')
+      card.className = 'region-card'
+
+      const name = document.createElement('span')
+      name.className = 'region-name'
+      name.textContent = site.name
+      card.appendChild(name)
+
+      const details = document.createElement('div')
+      details.className = 'agent-details'
+      details.textContent = `landmark: ${site.landmarkName}`
+      card.appendChild(details)
+
+      const concepts = document.createElement('span')
+      concepts.className = 'region-concepts'
+      concepts.textContent = site.concepts.join(', ')
+      card.appendChild(concepts)
+
+      container.appendChild(card)
+    }
+  }
+
+  // Practices
+  if (hierogony.practices.length > 0) {
+    const heading = document.createElement('h4')
+    heading.className = 'beat-heading'
+    heading.textContent = 'practices'
+    container.appendChild(heading)
+
+    for (const practice of hierogony.practices) {
+      const card = document.createElement('div')
+      card.className = 'region-card'
+
+      const nameLine = document.createElement('div')
+      nameLine.className = 'agent-name-line'
+      const name = document.createElement('span')
+      name.className = 'region-name'
+      name.textContent = practice.name
+      const typeBadge = document.createElement('span')
+      typeBadge.className = 'badge badge--seed'
+      typeBadge.textContent = practice.type
+      nameLine.append(name, typeBadge)
+      card.appendChild(nameLine)
+
+      const concepts = document.createElement('span')
+      concepts.className = 'region-concepts'
+      concepts.textContent = practice.concepts.join(', ')
+      card.appendChild(concepts)
+
+      container.appendChild(card)
+    }
+  }
+
+  return container
+}
+
+// ── Layer registry ──
+
+/**
+ * @typedef {{
+ *   title: string,
+ *   show: (w: World) => boolean,
+ *   render: (w: World) => (HTMLElement|DocumentFragment)[],
+ *   data: (w: World) => object,
+ * }} LayerDef
+ */
+
+/** @type {LayerDef[]} */
+const LAYER_RENDERERS = [
+  {
+    title: 'Layer 0 \u2014 Cosmogony',
+    show: w => w.myth !== null,
+    render: w => [renderCosmogony(/** @type {CreationMyth} */ (w.myth))],
+    data: w => /** @type {object} */ (w.myth),
+  },
+  {
+    title: 'Layer 1 \u2014 Theogony',
+    show: w => w.agents.length > 0,
+    render: w => [renderPantheon(w)],
+    data: w => ({ agents: w.agents.filter(a => a.origin === 'pantheon'), tensions: w.tensions }),
+  },
+  {
+    title: 'Layer 2 \u2014 Geogony',
+    show: w => w.geogony !== null,
+    render: w => [renderGeogony(/** @type {GeogonyData} */ (w.geogony), w)],
+    data: w => /** @type {object} */ (w.geogony),
+  },
+  {
+    title: 'Layer 3 \u2014 Biogony',
+    show: w => w.biogony !== null,
+    render: w => [renderBiogony(/** @type {BiogonyData} */ (w.biogony), w)],
+    data: w => /** @type {object} */ (w.biogony),
+  },
+  {
+    title: 'Layer 4 \u2014 Anthropogony',
+    show: w => w.anthropogony !== null,
+    render: w => [renderAnthropogony(/** @type {AnthropogonyData} */ (w.anthropogony), w)],
+    data: w => /** @type {object} */ (w.anthropogony),
+  },
+  {
+    title: 'Layer 5 \u2014 Chorogony',
+    show: w => w.chorogony !== null,
+    render: w => [renderChorogony(/** @type {ChorogonyData} */ (w.chorogony), w)],
+    data: w => /** @type {object} */ (w.chorogony),
+  },
+  {
+    title: 'Layer 6 \u2014 Hierogony',
+    show: w => w.hierogony !== null,
+    render: w => [renderHierogony(/** @type {HierogonyData} */ (w.hierogony), w)],
+    data: w => /** @type {object} */ (w.hierogony),
+  },
+  {
+    title: 'History',
+    show: w => w.events.length > 0,
+    render: w => [renderHistory(w), renderRegions(w)],
+    data: w => ({ events: w.events, regions: w.regions }),
+  },
+]
+
+/**
+ * Render all layer panels for a world into a DocumentFragment.
+ * @param {World} world
+ * @param {boolean} [defaultOpen=true]
+ * @returns {DocumentFragment}
+ */
+function renderLayerPanels(world, defaultOpen = true) {
+  const fragment = document.createDocumentFragment()
+  for (const layer of LAYER_RENDERERS) {
+    if (!layer.show(world)) continue
+    const { panel, body } = createLayerPanel(layer.title, defaultOpen)
+    for (const el of layer.render(world)) {
+      body.appendChild(el)
+    }
+    body.appendChild(createJsonToggle(layer.data(world)))
+    fragment.appendChild(panel)
+  }
+  return fragment
+}
+
+// ── Main display functions ──
+
+/**
+ * Render a world into the output container with layer accordion.
+ * @param {HTMLElement} container
+ * @param {World} world
+ */
+export function displayMyth(container, world) {
+  container.innerHTML = ''
+  const myth = /** @type {CreationMyth} */ (world.myth)
+
+  const section = document.createElement('section')
+  section.className = 'myth-section'
+
+  // Seed header
+  const header = document.createElement('div')
+  header.className = 'seed-header'
+
+  const seedTag = document.createElement('span')
+  seedTag.className = 'badge badge--seed'
+  seedTag.textContent = myth.seed
+
+  const recipeBadge = document.createElement('span')
+  recipeBadge.className = 'badge badge--recipe'
+  recipeBadge.textContent = myth.recipe
+
+  const copyBtn = document.createElement('button')
+  copyBtn.className = 'small'
+  copyBtn.textContent = 'copy json'
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(JSON.stringify(world, null, 2)).then(() => {
+      copyBtn.textContent = 'copied!'
+      setTimeout(() => { copyBtn.textContent = 'copy json' }, 1500)
+    })
+  })
+
+  header.append(seedTag, recipeBadge, copyBtn)
+  section.appendChild(header)
+
+  section.appendChild(renderLayerPanels(world))
+
+  container.appendChild(section)
+}
+
+/**
+ * Render a batch of worlds into the output container.
+ * @param {HTMLElement} container
+ * @param {World[]} worlds
+ */
+export function displayMythBatch(container, worlds) {
+  container.innerHTML = ''
+
+  // Batch toolbar
+  const toolbar = document.createElement('div')
+  toolbar.className = 'batch-toolbar'
+
+  const expandAllBtn = document.createElement('button')
+  expandAllBtn.className = 'small'
+  expandAllBtn.textContent = 'expand all'
+
+  const collapseAllBtn = document.createElement('button')
+  collapseAllBtn.className = 'small'
+  collapseAllBtn.textContent = 'collapse all'
+
+  const copyAllBtn = document.createElement('button')
+  copyAllBtn.className = 'small'
+  copyAllBtn.textContent = 'copy all json'
+
+  expandAllBtn.addEventListener('click', () => {
+    for (const d of container.querySelectorAll('details.layer-panel')) {
+      /** @type {HTMLDetailsElement} */ (d).open = true
+    }
+  })
+
+  collapseAllBtn.addEventListener('click', () => {
+    for (const d of container.querySelectorAll('details.layer-panel')) {
+      /** @type {HTMLDetailsElement} */ (d).open = false
+    }
+  })
+
+  copyAllBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(JSON.stringify(worlds, null, 2)).then(() => {
+      copyAllBtn.textContent = 'copied!'
+      setTimeout(() => { copyAllBtn.textContent = 'copy all json' }, 1500)
+    })
+  })
+
+  toolbar.append(expandAllBtn, collapseAllBtn, copyAllBtn)
+  container.appendChild(toolbar)
+
+  const fragment = document.createDocumentFragment()
+
+  for (const world of worlds) {
+    const myth = /** @type {CreationMyth} */ (world.myth)
+    const card = document.createElement('section')
+    card.className = 'myth-section myth-card'
+
+    // Seed header
+    const header = document.createElement('div')
+    header.className = 'seed-header'
+
+    const seedTag = document.createElement('span')
+    seedTag.className = 'badge badge--seed'
+    seedTag.textContent = myth.seed
+
+    const recipeBadge = document.createElement('span')
+    recipeBadge.className = 'badge badge--recipe'
+    recipeBadge.textContent = myth.recipe
+
+    header.append(seedTag, recipeBadge)
+    card.appendChild(header)
+
+    card.appendChild(renderLayerPanels(world, false))
+
+    fragment.appendChild(card)
+  }
+
+  container.appendChild(fragment)
 }
