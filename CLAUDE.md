@@ -116,6 +116,12 @@ src/
     dream.js       — Recipe: reality hallucinated by sleeping entity, might wake.
     corruption.js  — Recipe: something perfect was ruined, perfection lost forever.
     symbiosis.js   — Recipe: two things merged, world is both in permanent tension.
+    exile.js       — Recipe: creator cast out, world shaped from memory of lost origin.
+    utterance.js   — Recipe: voice names reality into being, consumed by speaking.
+    weaving.js     — Recipe: craftsman assembles world from gathered materials.
+    contagion.js   — Recipe: contained thing escapes and spreads uncontrollably.
+    mourning.js    — Recipe: world built as memorial to something that died before creation.
+    taboo.js       — Recipe: forbidden act creates the world as consequence.
 index.html       — App shell: header#controls + main#output. No canvas.
 css/main.css     — Dark theme, centered layout, serif typography for prose.
 ```
@@ -163,8 +169,9 @@ structured concept roles. The act beat's `verb` role selects the prose template 
 - **Flaw** = the ongoing wound. Present tense, active, still shaping the world. The scar that won't heal.
 Cost is grief. Flaw is haunting. When these are clearly distinct, the myth has temporal depth.
 
-Twelve recipe archetypes: solo-god, pantheon-war, world-birth, sacrifice, splitting,
-accident, cycle, rebellion, theft, dream, corruption, symbiosis.
+Eighteen recipe archetypes: solo-god, pantheon-war, world-birth, sacrifice, splitting,
+accident, cycle, rebellion, theft, dream, corruption, symbiosis, exile, utterance,
+weaving, contagion, mourning, taboo.
 
 ### Query Helpers
 `src/queryHelpers.js` provides reusable semantic concept finders with tiered fallbacks:

@@ -143,8 +143,14 @@ Small tweaks and bug fixes. Add when found, remove when resolved.
 - [x] **Cycle** — creation is recurring. This isn't the first world, or the last. Destruction is equally inevitable.
 - [x] **Rebellion** — creations overthrew their creator. The world is an orphan built on the creator's corpse.
 - [x] **Symbiosis** — two things merged and can't be separated. The world is both at once, forever in tension.
+- [x] **Exile** — a creator cast out from a lost origin; the world shaped from fragments of memory
+- [x] **Utterance** — a voice names reality into being; the voice is consumed; something was misnamed
+- [x] **Weaving** — a craftsman assembles the world from gathered materials; the materials remember
+- [x] **Contagion** — something contained breaks free and spreads uncontrollably; growth cannot stop
+- [x] **Mourning** — the world built as memorial to something that died before creation
+- [x] **Taboo** — a forbidden act creates the world as consequence; a prohibition echoes forever
 - [x] Quality bar: every recipe must produce a relationship, an ongoing consequence, and the possibility of paradox (world-birth is the benchmark)
-- [x] Verify: 24 seeds produce varied output across all 12 recipes
+- [x] Verify: 24 seeds produce varied output across all 18 recipes
 
 ---
 

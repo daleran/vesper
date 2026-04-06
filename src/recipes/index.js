@@ -47,9 +47,16 @@ import { theft } from './theft.js'
 import { dream } from './dream.js'
 import { corruption } from './corruption.js'
 import { symbiosis } from './symbiosis.js'
+import { exile } from './exile.js'
+import { utterance } from './utterance.js'
+import { weaving } from './weaving.js'
+import { contagion } from './contagion.js'
+import { mourning } from './mourning.js'
+import { taboo } from './taboo.js'
 
 /** @type {MythRecipe[]} */
 export const RECIPES = [
   soloGod, pantheonWar, worldBirth, sacrifice, splitting, accident,
   cycle, rebellion, theft, dream, corruption, symbiosis,
+  exile, utterance, weaving, contagion, mourning, taboo,
 ]

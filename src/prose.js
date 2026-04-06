@@ -584,6 +584,148 @@ const ACT_OVERTHREW = [
   (r) => `${r.slain} had ruled since before memory. ${r.actor} remembered, and did not forgive. At ${r.place}, the created destroyed the creator, and the world is what grew from the wreckage.`,
 ]
 
+/** @type {Array<(r: BeatRoles, s: SensoryMap) => string>} */
+const ACT_WANDERED = [
+  (r) => `${r.actor} wandered out of ${r.origin} and into the emptiness, and where it walked, the emptiness took shape. What grew behind it was ${r.product}.`,
+  (r, s) => {
+    const os = s[r.origin] ?? {}
+    return os.color
+      ? `${r.actor} was cast from ${r.origin} — ${os.color} and unreachable — and stumbled through the void, and ${r.product} grew from the memory of what was lost.`
+      : `${r.actor} was cast from ${r.origin} and stumbled through the void, and ${r.product} grew from the memory of what was lost.`
+  },
+  (r) => `Exiled from ${r.origin}, ${r.actor} walked. And kept walking. The world — ${r.product} — assembled itself from longing, step by step.`,
+  (r, s) => {
+    const ps = s[r.product] ?? {}
+    return ps.evokes
+      ? `${r.actor} carried the memory of ${r.origin} into the void, and the memory became ${r.product} — ${ps.evokes} given form, a copy of something unreachable.`
+      : `${r.actor} carried the memory of ${r.origin} into the void, and the memory became ${r.product} — a copy of something unreachable.`
+  },
+  (r) => `There was no return to ${r.origin}. ${r.actor} knew this, and built ${r.product} from what it could remember. The world is a letter home that will never arrive.`,
+  (r) => `${r.actor} left ${r.origin} — or was driven from it — and in the exile, shaped ${r.product} from fragments. Every mountain is a memory. Every river, a guess.`,
+  (r, s) => {
+    const os = s[r.origin] ?? {}
+    return os.sound
+      ? `The last thing ${r.actor} heard from ${r.origin} was ${os.sound}. It has been trying to recreate that sound ever since. ${r.product} is the closest it has come.`
+      : `${r.actor} fled ${r.origin} and shaped ${r.product} in its image — imperfect, aching, the best the exile could manage.`
+  },
+  (r) => `What changed everything: ${r.actor}, alone, far from ${r.origin}, building ${r.product} from homesickness. The world is an exile's craft.`,
+]
+
+/** @type {Array<(r: BeatRoles, s: SensoryMap) => string>} */
+const ACT_NAMED = [
+  (r) => `${r.actor} spoke into the void, and the first word was ${r.word}. Where the name landed, ${r.product} grew — real because it was called.`,
+  (r, s) => {
+    const ws = s[r.word] ?? {}
+    return ws.sound
+      ? `${r.actor} uttered ${r.word} — the sound was ${ws.sound} — and the name became the thing. ${r.product} answered the calling.`
+      : `${r.actor} uttered ${r.word}, and the name became the thing. ${r.product} answered the calling.`
+  },
+  (r) => `Before the naming, nothing existed. ${r.actor} spoke ${r.word}, and ${r.product} assembled itself from the syllables, obedient and new.`,
+  (r) => `It happened like this: ${r.actor} opened its mouth and said ${r.word}. The void listened, and where it listened hardest, ${r.product} appeared.`,
+  (r, s) => {
+    const ps = s[r.product] ?? {}
+    return ps.color
+      ? `${r.actor} named ${r.word} into the silence, and ${r.product} took shape — ${ps.color} and trembling, freshly called into being.`
+      : `${r.actor} named ${r.word} into the silence, and ${r.product} took shape — trembling, freshly called into being.`
+  },
+  (r) => `The world was spoken. ${r.actor} said ${r.word}, and ${r.product} obeyed the naming. Language came before matter, and matter has been catching up ever since.`,
+  (r) => `${r.actor} did not build or strike or dream. It simply named: ${r.word}. And ${r.product} was — suddenly, irrevocably, as real as the voice that made it.`,
+  (r) => `What changed everything: ${r.actor}, speaking ${r.word} into the dark. ${r.product} condensed from the echo. The world is a word that will not stop reverberating.`,
+]
+
+/** @type {Array<(r: BeatRoles, s: SensoryMap) => string>} */
+const ACT_WOVE = [
+  (r) => `${r.actor} gathered ${r.material} and, with ${r.tool}, wove it into ${r.product}. The world was made the way a thing is made — with hands and patience.`,
+  (r, s) => {
+    const ms = s[r.material] ?? {}
+    return ms.texture
+      ? `${r.actor} took ${r.material} — ${ms.texture}, reluctant — and worked it with ${r.tool} until it became ${r.product}. Every part of the world was placed deliberately.`
+      : `${r.actor} took ${r.material} and worked it with ${r.tool} until it became ${r.product}. Every part of the world was placed deliberately.`
+  },
+  (r) => `It was craft, not miracle. ${r.actor} found ${r.material}, picked up ${r.tool}, and built ${r.product} the way all things are built — slowly, with effort, with choices that cannot be undone.`,
+  (r) => `${r.actor} sat at the edge of the void with ${r.tool} and ${r.material} and wove. What emerged was ${r.product} — not born, not struck, but assembled.`,
+  (r, s) => {
+    const ts = s[r.tool] ?? {}
+    return ts.shape
+      ? `With ${toolDesc(r.tool, ts)}, ${r.actor} shaped ${r.material} into ${r.product}. The world has seams if you know where to look.`
+      : `With ${r.tool}, ${r.actor} shaped ${r.material} into ${r.product}. The world has seams if you know where to look.`
+  },
+  (r) => `${r.material} did not want to become ${r.product}. But ${r.actor} was patient, and ${r.tool} was steady, and the world was woven whether the materials consented or not.`,
+  (r, s) => {
+    const ps = s[r.product] ?? {}
+    return ps.evokes
+      ? `${r.actor} braided ${r.material} with ${r.tool}, and the weave became ${r.product} — carrying ${ps.evokes} in every thread.`
+      : `${r.actor} braided ${r.material} with ${r.tool}, and the weave became ${r.product}.`
+  },
+  (r) => `What changed everything: ${r.actor}, making ${r.product} from ${r.material} and ${r.tool}. The world is a made thing. You can still see the maker's fingerprints.`,
+]
+
+/** @type {Array<(r: BeatRoles, s: SensoryMap) => string>} */
+const ACT_SPREAD = [
+  (r) => `${r.source} was contained. Then it wasn't. It spread, and what it became was ${r.product} — unplanned, unstoppable, alive.`,
+  (r, s) => {
+    const ps = s[r.product] ?? {}
+    return ps.color
+      ? `${r.source} broke free and bloomed — ${ps.color}, ravenous — until the void was filled with ${r.product}. No one told it to stop.`
+      : `${r.source} broke free and bloomed until the void was filled with ${r.product}. No one told it to stop.`
+  },
+  (r) => `Something small escaped. ${r.source} found a crack and poured through it, and what filled the emptiness was ${r.product}. The world is an overflow.`,
+  (r) => `It happened like this: ${r.source}, sealed and still, suddenly wasn't. It spread. ${r.product} grew from it the way a stain grows — quietly, everywhere, all at once.`,
+  (r, s) => {
+    const ss = s[r.source] ?? {}
+    return ss.texture
+      ? `${r.source} — ${ss.texture}, potent — spilled out and would not stop. ${r.product} filled the void the way water fills a bowl. The world is the spill.`
+      : `${r.source} spilled out and would not stop. ${r.product} filled the void the way water fills a bowl. The world is the spill.`
+  },
+  (r) => `No one meant for ${r.source} to escape. But it did, and it became ${r.product}, and ${r.product} became everything. The world is a contagion that caught.`,
+  (r) => `${r.source} was tiny. Then it was everywhere. ${r.product} bloomed from it — not created, not willed, but propagated. The world is what happens when containment fails.`,
+  (r) => `What changed everything: ${r.source}, breaking free. ${r.product} followed like fever follows a wound. The world grew because nothing could stop it.`,
+]
+
+/** @type {Array<(r: BeatRoles, s: SensoryMap) => string>} */
+const ACT_MOURNED = [
+  (r) => `${r.actor} found ${r.dead} already gone — dead before the world began. The grief became ${r.product}. The world is a memorial to something no one remembers.`,
+  (r, s) => {
+    const ds = s[r.dead] ?? {}
+    return ds.color
+      ? `${r.actor} knelt over ${r.dead} — fading, ${ds.color}, already lost — and from the mourning, ${r.product} grew. The world is shaped by grief.`
+      : `${r.actor} knelt over ${r.dead} and from the mourning, ${r.product} grew. The world is shaped by grief.`
+  },
+  (r) => `Something had died before anything else existed. ${r.actor} wept for ${r.dead}, and the tears became ${r.product}. The world began as an elegy.`,
+  (r) => `${r.actor} did not create the world on purpose. ${r.actor} was trying to bring ${r.dead} back. What came instead was ${r.product} — close enough to grieve over, too different to console.`,
+  (r, s) => {
+    const ps = s[r.product] ?? {}
+    return ps.evokes
+      ? `The world was not made — it was mourned into being. ${r.actor} grieved for ${r.dead}, and ${r.product} grew from the sorrow, carrying ${ps.evokes} in its bones.`
+      : `The world was not made — it was mourned into being. ${r.actor} grieved for ${r.dead}, and ${r.product} grew from the sorrow.`
+  },
+  (r) => `${r.dead} was gone before ${r.actor} arrived. The mourning that followed shaped ${r.product} — not a world built, but a world wept.`,
+  (r) => `No one asked for this world. ${r.actor} was remembering ${r.dead}, and the remembering took form, and the form was ${r.product}, and ${r.product} could never be what was lost.`,
+  (r) => `What changed everything: ${r.actor}, grieving for ${r.dead}, shaping ${r.product} from absence. The world is a monument to something it cannot name.`,
+]
+
+/** @type {Array<(r: BeatRoles, s: SensoryMap) => string>} */
+const ACT_TRANSGRESSED = [
+  (r) => `There was a law: ${r.law} must not be broken. ${r.actor} broke it anyway, and ${r.product} spilled from the breach. The world began with disobedience.`,
+  (r, s) => {
+    const ls = s[r.law] ?? {}
+    return ls.evokes
+      ? `${r.law} held the void in order — all ${ls.evokes} and certainty. Then ${r.actor} crossed the line, and ${r.product} erupted from the violation.`
+      : `${r.law} held the void in order. Then ${r.actor} crossed the line, and ${r.product} erupted from the violation.`
+  },
+  (r) => `Before the world, there was a rule: ${r.law}. ${r.actor} broke it — not by accident, not by ignorance — and the world is what poured through the gap.`,
+  (r) => `It happened like this: ${r.actor} looked at ${r.law} and decided it did not apply. The moment the law shattered, ${r.product} filled the space where obedience had been.`,
+  (r, s) => {
+    const ps = s[r.product] ?? {}
+    return ps.color
+      ? `${r.actor} transgressed against ${r.law}, and the consequence was ${r.product} — ${ps.color}, wild, ungoverned. The world is the punishment no one can lift.`
+      : `${r.actor} transgressed against ${r.law}, and the consequence was ${r.product}. The world is the punishment no one can lift.`
+  },
+  (r) => `The law was ${r.law}. Everyone obeyed it — except ${r.actor}. And the world — ${r.product} — is what happens when the forbidden is done.`,
+  (r) => `${r.actor} knew the boundary. ${r.actor} crossed it. ${r.law} shattered, and ${r.product} grew from the wreckage. The world is a crime scene.`,
+  (r) => `What changed everything: ${r.actor}, choosing to break ${r.law}. ${r.product} was the consequence. The world is still serving the sentence.`,
+]
+
 /** @type {Record<string, Array<(r: BeatRoles, s: SensoryMap) => string>>} */
 const ACT_POOLS = {
   struck: ACT_STRUCK,
@@ -597,6 +739,12 @@ const ACT_POOLS = {
   corrupted: ACT_CORRUPTED,
   merged: ACT_MERGED,
   overthrew: ACT_OVERTHREW,
+  wandered: ACT_WANDERED,
+  named: ACT_NAMED,
+  wove: ACT_WOVE,
+  spread: ACT_SPREAD,
+  mourned: ACT_MOURNED,
+  transgressed: ACT_TRANSGRESSED,
 }
 
 /** @type {Array<(r: BeatRoles, s: SensoryMap) => string>} */

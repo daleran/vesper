@@ -405,4 +405,213 @@ export const SHAPES = {
 
     return seeds
   },
+
+  'exile'(graph, myth, rng) {
+    const wanderer = /** @type {string} */ (myth.extra['wanderer'])
+    const origin = /** @type {string} */ (myth.extra['origin'])
+    const product = /** @type {string} */ (myth.extra['product'])
+
+    /** @type {AgentSeed[]} */
+    const seeds = []
+
+    // Exiled god — active, wandering
+    const wandererNearby = query(graph).nearby(wanderer, 1).exclude(wanderer, origin, product).get().slice(0, 2)
+    seeds.push(seed({ domains: [wanderer, ...wandererNearby], mythRole: 'creator', state: 'exiled' }))
+
+    // Origin spirit — transformed, unreachable
+    const originNearby = query(graph).nearby(origin, 1).exclude(origin, wanderer).get().slice(0, 1)
+    seeds.push(seed({
+      domains: [origin, ...originNearby],
+      type: 'spirit',
+      mythRole: 'echo',
+      state: 'transformed',
+    }))
+
+    // Homesickness demon from flaw
+    seeds.push(spiritFromWalk(graph, rng, myth.flaw.concepts[0] ?? product, 'flaw-bearer', ['evokes', 'collides']))
+
+    return seeds
+  },
+
+  'utterance'(graph, myth, rng) {
+    const speaker = /** @type {string} */ (myth.extra['speaker'])
+    const word = /** @type {string} */ (myth.extra['word'])
+    const unnamed = /** @type {string} */ (myth.extra['unnamed'])
+
+    /** @type {AgentSeed[]} */
+    const seeds = []
+
+    // Dead speaker god — voice consumed
+    const speakerNearby = query(graph).nearby(speaker, 1).exclude(speaker, word, unnamed).get().slice(0, 2)
+    seeds.push(seed({
+      domains: [speaker, ...speakerNearby],
+      mythRole: 'sacrifice',
+      alive: false,
+      state: 'dead',
+    }))
+
+    // Named-world spirit
+    const wordNearby = query(graph).nearby(word, 1).exclude(word, speaker, unnamed).get().slice(0, 1)
+    seeds.push(seed({
+      domains: [word, ...wordNearby],
+      type: 'spirit',
+      mythRole: 'echo',
+    }))
+
+    // Unnamed demon — the gap in reality
+    const unnamedNearby = query(graph).nearby(unnamed, 1).exclude(unnamed, speaker, word).get().slice(0, 2)
+    seeds.push(seed({
+      domains: [unnamed, ...unnamedNearby],
+      type: 'demon',
+      mythRole: 'flaw-bearer',
+    }))
+
+    // Herald from the speaker's domain
+    seeds.push(spiritFromWalk(graph, rng, speaker, 'witness', ['evokes', 'produces']))
+
+    return seeds
+  },
+
+  'weaving'(graph, myth, rng) {
+    const crafter = /** @type {string} */ (myth.extra['crafter'])
+    const tool = /** @type {string} */ (myth.extra['tool'])
+    const material = /** @type {string} */ (myth.extra['material'])
+
+    /** @type {AgentSeed[]} */
+    const seeds = []
+
+    // Crafter god — still active
+    const crafterNearby = query(graph).nearby(crafter, 1).exclude(crafter, tool, material).get().slice(0, 2)
+    seeds.push(seed({ domains: [crafter, ...crafterNearby], mythRole: 'creator' }))
+
+    // Tool spirit
+    const toolNearby = query(graph).nearby(tool, 1).exclude(tool, crafter, material).get().slice(0, 1)
+    seeds.push(seed({
+      domains: [tool, ...toolNearby],
+      type: 'spirit',
+      mythRole: 'witness',
+    }))
+
+    // Material ancestor — transformed
+    const matNearby = query(graph).nearby(material, 1).exclude(material, crafter, tool).get().slice(0, 1)
+    seeds.push(seed({
+      domains: [material, ...matNearby],
+      type: 'ancestor',
+      mythRole: 'sacrifice',
+      state: 'transformed',
+    }))
+
+    // Flaw spirit from the material's resistance
+    seeds.push(spiritFromWalk(graph, rng, myth.flaw.concepts[0] ?? material, 'flaw-bearer', ['collides', 'evokes']))
+
+    return seeds
+  },
+
+  'contagion'(graph, myth, rng) {
+    const source = /** @type {string} */ (myth.extra['source'])
+    const container = /** @type {string} */ (myth.extra['container'])
+    const bloom = /** @type {string} */ (myth.extra['bloom'])
+
+    /** @type {AgentSeed[]} */
+    const seeds = []
+
+    // Source spirit — no gods in a contagion (like accident)
+    const sourceNearby = query(graph).nearby(source, 1).exclude(source, container, bloom).get().slice(0, 2)
+    seeds.push(seed({
+      domains: [source, ...sourceNearby],
+      type: 'spirit',
+      mythRole: 'creator',
+    }))
+
+    // Container ancestor — dead, shattered
+    const contNearby = query(graph).nearby(container, 1).exclude(container, source, bloom).get().slice(0, 1)
+    seeds.push(seed({
+      domains: [container, ...contNearby],
+      type: 'ancestor',
+      mythRole: 'sacrifice',
+      alive: false,
+      state: 'dead',
+    }))
+
+    // Bloom demons — the spread
+    seeds.push(spiritFromWalk(graph, rng, bloom, 'flaw-bearer', ['produces', 'consumes']))
+
+    return seeds
+  },
+
+  'mourning'(graph, myth, rng) {
+    const mourner = /** @type {string} */ (myth.extra['mourner'])
+    const dead = /** @type {string} */ (myth.extra['dead'])
+    const memorial = /** @type {string} */ (myth.extra['memorial'])
+
+    /** @type {AgentSeed[]} */
+    const seeds = []
+
+    // Mourner god — active, grieving
+    const mournerNearby = query(graph).nearby(mourner, 1).exclude(mourner, dead, memorial).get().slice(0, 2)
+    seeds.push(seed({ domains: [mourner, ...mournerNearby], mythRole: 'creator' }))
+
+    // Dead ancestor — gone before creation
+    const deadNearby = query(graph).nearby(dead, 1).exclude(dead, mourner, memorial).get().slice(0, 1)
+    seeds.push(seed({
+      domains: [dead, ...deadNearby],
+      type: 'ancestor',
+      mythRole: 'sacrifice',
+      alive: false,
+      state: 'dead',
+    }))
+
+    // Memorial spirit
+    const memNearby = query(graph).nearby(memorial, 1).exclude(memorial, mourner, dead).get().slice(0, 1)
+    seeds.push(seed({
+      domains: [memorial, ...memNearby],
+      type: 'spirit',
+      mythRole: 'echo',
+    }))
+
+    // Grief demon from the flaw
+    seeds.push(spiritFromWalk(graph, rng, myth.flaw.concepts[0] ?? dead, 'flaw-bearer', ['evokes', 'rhymes']))
+
+    return seeds
+  },
+
+  'taboo'(graph, myth, rng) {
+    const transgressor = /** @type {string} */ (myth.extra['transgressor'])
+    const law = /** @type {string} */ (myth.extra['law'])
+    const consequence = /** @type {string} */ (myth.extra['consequence'])
+
+    /** @type {AgentSeed[]} */
+    const seeds = []
+
+    // Transgressor demi-god — exiled
+    const transNearby = query(graph).nearby(transgressor, 1).exclude(transgressor, law, consequence).get().slice(0, 2)
+    seeds.push(seed({
+      domains: [transgressor, ...transNearby],
+      type: 'demi-god',
+      mythRole: 'creator',
+      state: 'exiled',
+    }))
+
+    // Law spirit — dead, the shattered order
+    const lawNearby = query(graph).nearby(law, 1).exclude(law, transgressor, consequence).get().slice(0, 1)
+    seeds.push(seed({
+      domains: [law, ...lawNearby],
+      type: 'spirit',
+      mythRole: 'sacrifice',
+      alive: false,
+      state: 'dead',
+    }))
+
+    // Consequence god — the world that resulted
+    const consNearby = query(graph).nearby(consequence, 1).exclude(consequence, transgressor, law).get().slice(0, 2)
+    seeds.push(seed({
+      domains: [consequence, ...consNearby],
+      mythRole: 'echo',
+    }))
+
+    // Taboo herald — the residual prohibition
+    seeds.push(spiritFromWalk(graph, rng, myth.flaw.concepts[0] ?? law, 'flaw-bearer', ['evokes', 'rhymes']))
+
+    return seeds
+  },
 }
