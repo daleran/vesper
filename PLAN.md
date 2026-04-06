@@ -250,34 +250,27 @@ defining local variation.
 
 ---
 
-## Layer 4 — Phoneme-Driven Naming (planned, not started)
+## Layer 4 — Phoneme-Driven Naming
 
-> Build after Layer 3 mythic history.
+### Phase 19 — Agent Naming Engine ✓
 
-Names are the mythology's most frequent point of contact with the player. If names
-sound like they belong to a specific culture shaped by specific history, the world
-feels real.
+- [x] `src/naming.js` — 8 phoneme palettes keyed by `sound` edge targets (roar, whisper, crack, ring, hush, moan, hum, hollow)
+- [x] Sound resolution: concept → `sound` edge → palette key, with evokes/texture fallbacks
+- [x] World signature blending: myth concepts → top 2–3 palettes → 30% baseline for all names
+- [x] Syllable count by agent type: god 1–2, demi-god 2, spirit/demon 2–3, ancestor/herald 2
+- [x] Phonotactic validation: consonant cluster limits, vowel run limits, banned words
+- [x] ~37 new `sound` edges in `src/concepts.js` for common agent-domain concepts
+- [x] Integrated into `generatePantheon()` as step 3.5 (after buildAgent, before dispositions)
+- [x] Deterministic: same seed always produces same names
+- [x] Verify: `npm run validate` passes, 20 seeds produce varied non-placeholder names
 
-**How it works:**
+### Future — Region-Based Naming (after Layer 3)
 
-- New `phoneme` edge type maps concepts to sound qualities (fire→harsh, dream→soft, void→hollow, stone→stopped)
-- Each sound quality maps to a phoneme palette: consonant onsets, vowel nuclei, codas, syllable structures
-- A region's concept tags determine its phoneme blend; names drawn from that blend
-- Names from the same region sound _related_; names from different regions sound _distinct_
-
-**Example palettes:**
-
-- harsh (fire, war): onsets [k, g, kr, tch] / vowels [a, u, æ] / codas [k, t, rk]
-- soft (dream, silk): onsets [l, m, sh, y] / vowels [ee, ay, ih] / codas [n, l, sh]
-- hollow (void, grief): onsets [h, wh, v, th] / vowels [oo, oh, uh] / codas [m, n, —]
-
-**What gets named:**
-
-- Places — regions, landmarks, ruins, settlements (2–3 syllables, palette from region tags)
-- Agents (gods, spirits, demons) — 1–2 syllables for primordial gods (monosyllabic feels ancient), 2–3 for later figures; palette from agent domains
-- Cultures and peoples — sound like their region with distinct suffix conventions; endonym vs. exonym use different palettes
-- Creatures and flora — folk names using the local culture's palette
-- Artifacts and materials — named by maker/discoverer, using that culture's palette
+- [ ] Region concept clusters drive regional phoneme palettes
+- [ ] Place names (2–3 syllables) drawn from region palette
+- [ ] Culture/people names with distinct suffix conventions
+- [ ] Creature/flora folk names using local culture's palette
+- [ ] Endonym vs. exonym use different palettes
 
 ---
 

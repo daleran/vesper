@@ -98,6 +98,7 @@ src/
   prose.js       — renderProse(myth, graph) — assembles prose from beat roles + sensory edges.
   pantheon.js    — generatePantheon(graph, myth, rng) → Pantheon. Agent pipeline.
   pantheonShapes.js — Per-recipe shape functions: SHAPES registry keyed by recipe name.
+  naming.js      — Phoneme-driven naming: palettes, syllable gen, nameAgents().
   query.js       — Chainable concept graph query builder. query(graph).where().or().get().
   queryHelpers.js — Reusable semantic concept finders: findTool, findVoid, findArena, etc.
   ui.js          — buildUI() — DOM controls (seed, generate) and output display.
@@ -246,6 +247,27 @@ spirits until 3-7 total agents.
 
 **Relationships:** `collides` → rival, `consumes` → slayer, `transforms`/`produces` → parent,
 shared `is` category → sibling. Myth-derived: creator mythRole + derived → creator/ward.
+
+### Naming System
+`nameAgents(graph, myth, agents, rng)` assigns phoneme-driven names to pantheon agents.
+Called inside `generatePantheon()` after building agents, before dispositions.
+
+**Pipeline:** Concept domains → `sound` edge resolution → phoneme palette selection →
+syllable assembly → phonotactic validation → name assignment.
+
+**8 phoneme palettes** keyed by `sound` edge targets: roar, whisper, crack, ring, hush,
+moan, hum, hollow. Each palette defines onset consonants, vowel nuclei, and codas.
+Rare sound targets (silence, echo, wail, rasp, drum) alias to the nearest main palette.
+
+**Sound resolution fallback:** direct `sound` edge → `evokes` neighbor's sound edge →
+`texture` mapping (rough→crack, smooth→whisper, soft→hush) → default whisper.
+
+**World signature:** The myth's concepts are resolved to sound qualities; the top 2–3
+form a baseline palette blended into every agent's name (30% world, 70% agent domains).
+All names in a world share a language feel.
+
+**Agent type → syllable count:** god 1–2, demi-god 2, spirit 2–3, demon 2–3,
+ancestor 2, herald 2. Monosyllabic gods feel ancient.
 
 ---
 

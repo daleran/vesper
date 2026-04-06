@@ -24,41 +24,41 @@ const PALETTES = {
   roar: {
     onsets: ['k', 'g', 'kr', 'dr', 'tr', 'gr', 'br'],
     vowels: ['a', 'ah', 'u', 'o', 'ar'],
-    codas:  ['k', 'th', 'rk', 'r', 'g', 'rn'],
+    codas:  ['k', 'th', 'rk', 'r', 'g', ''],
   },
   whisper: {
-    onsets: ['l', 'sh', 's', 'y', 'n', 'sl', 'sy'],
-    vowels: ['ee', 'ay', 'ih', 'eh', 'i'],
+    onsets: ['l', 'sh', 's', 'y', 'n', 'sl'],
+    vowels: ['ee', 'ay', 'i', 'eh', 'ei'],
     codas:  ['n', 'l', 'sh', 's', ''],
   },
   crack: {
     onsets: ['k', 't', 'sk', 'p', 'st', 'kr'],
-    vowels: ['a', 'eh', 'i', 'ak'],
-    codas:  ['k', 't', 'ks', 'p', 'kt'],
+    vowels: ['a', 'eh', 'i', 'e'],
+    codas:  ['k', 't', 'p', 'r', ''],
   },
   ring: {
-    onsets: ['r', 'l', 'v', 'z', 'ry', 'ly'],
+    onsets: ['r', 'l', 'v', 'z', 'ri', 'li'],
     vowels: ['ee', 'i', 'ay', 'a', 'ey'],
     codas:  ['n', 'l', 'th', '', 'r'],
   },
   hush: {
     onsets: ['h', 'f', 'th', 'sh', 'ph'],
-    vowels: ['uh', 'ah', 'eh', 'a', 'ae'],
+    vowels: ['a', 'ah', 'eh', 'ae', 'e'],
     codas:  ['sh', 'th', 's', '', 'f'],
   },
   moan: {
-    onsets: ['m', 'n', 'v', 'w', 'mu', 'nw'],
+    onsets: ['m', 'n', 'v', 'w', 'mo', 'no'],
     vowels: ['oh', 'oo', 'aw', 'ou'],
     codas:  ['m', 'n', 'l', '', 'r'],
   },
   hum: {
-    onsets: ['m', 'n', 'b', 'w', 'l', 'bw'],
-    vowels: ['u', 'ah', 'uh', 'eh', 'a'],
+    onsets: ['m', 'n', 'b', 'w', 'l', 'bu'],
+    vowels: ['u', 'ah', 'o', 'eh', 'a'],
     codas:  ['m', 'n', 'ng', '', 'l'],
   },
   hollow: {
     onsets: ['h', 'v', 'th', '', 'wh'],
-    vowels: ['oo', 'oh', 'uh', 'ah', 'o'],
+    vowels: ['oo', 'oh', 'o', 'ah', 'u'],
     codas:  ['m', 'n', '', 'th', 'l'],
   },
 }
@@ -196,8 +196,14 @@ function consonantRunAt(s, start) {
   return n
 }
 
+/** Short words to reject as names — common English articles/prepositions. */
+const BANNED_NAMES = new Set([
+  'the', 'a', 'an', 'he', 'she', 'we', 'me', 'be', 'no', 'so', 'go', 'do',
+  'ha', 'hi', 'oh', 'ah', 'uh', 'boo', 'moo', 'poo', 'goo', 'woo', 'hah',
+])
+
 /** Bad onset clusters that are unpronounceable in English-like phonotactics. */
-const BAD_ONSETS = new Set(['ng', 'sr', 'nr', 'nl', 'ml', 'tl', 'dl'])
+const BAD_ONSETS = new Set(['ng', 'sr', 'nr', 'nl', 'ml', 'tl', 'dl', 'nw', 'bw', 'pw', 'fw'])
 
 /**
  * Check if a generated name is pronounceable.
@@ -206,10 +212,18 @@ const BAD_ONSETS = new Set(['ng', 'sr', 'nr', 'nl', 'ml', 'tl', 'dl'])
  */
 function isPronounceable(name) {
   if (name.length < 2) return false
+  if (name.length > 9) return false
 
-  // No 3+ consecutive consonants
+  // No 3+ consecutive consonants anywhere
   for (let i = 0; i < name.length; i++) {
-    if (!VOWEL_CHARS.has(name[i]) && consonantRunAt(name, i) >= 4) return false
+    if (!VOWEL_CHARS.has(name[i]) && consonantRunAt(name, i) >= 3) return false
+  }
+
+  // No 3+ consecutive vowel characters (catches digraph collisions like "ooo")
+  let vowelRun = 0
+  for (const ch of name) {
+    vowelRun = VOWEL_CHARS.has(ch) ? vowelRun + 1 : 0
+    if (vowelRun >= 3) return false
   }
 
   // No bad word-initial clusters
@@ -217,11 +231,16 @@ function isPronounceable(name) {
   if (BAD_ONSETS.has(first2)) return false
 
   // Must contain at least one vowel
-  let hasVowel = false
-  for (const ch of name) {
-    if (VOWEL_CHARS.has(ch)) { hasVowel = true; break }
+  if (vowelRun === 0) {
+    let hasVowel = false
+    for (const ch of name) {
+      if (VOWEL_CHARS.has(ch)) { hasVowel = true; break }
+    }
+    if (!hasVowel) return false
   }
-  if (!hasVowel) return false
+
+  // Reject common English words
+  if (BANNED_NAMES.has(name)) return false
 
   return true
 }
@@ -230,13 +249,15 @@ function isPronounceable(name) {
  * Generate a single syllable from a palette.
  * @param {() => number} rng
  * @param {Palette} palette
+ * @param {boolean} isFinal — final syllables get codas more often
  * @returns {string}
  */
-function makeSyllable(rng, palette) {
+function makeSyllable(rng, palette, isFinal) {
   const onset = pick(rng, palette.onsets)
   const vowel = pick(rng, palette.vowels)
-  // 50% chance of a coda
-  const coda = rng() < 0.5 ? pick(rng, palette.codas) : ''
+  // Final syllables: 60% coda. Non-final: 30% coda (prevents cluster buildup).
+  const codaChance = isFinal ? 0.6 : 0.3
+  const coda = rng() < codaChance ? pick(rng, palette.codas) : ''
   return onset + vowel + coda
 }
 
@@ -257,8 +278,11 @@ function generateName(rng, paletteKeys, weights, syllableCount) {
     let raw = ''
     for (let s = 0; s < syllableCount; s++) {
       const pal = weightedPick(rng, palettes, w)
-      raw += makeSyllable(rng, pal)
+      raw += makeSyllable(rng, pal, s === syllableCount - 1)
     }
+
+    // Collapse adjacent identical consonants (syllable-boundary artifacts)
+    raw = raw.replace(/([^aeiou])\1/g, '$1')
 
     // Capitalize
     const name = raw.charAt(0).toUpperCase() + raw.slice(1)
@@ -266,10 +290,17 @@ function generateName(rng, paletteKeys, weights, syllableCount) {
     if (isPronounceable(name.toLowerCase())) return name
   }
 
-  // Last resort: simple fallback
+  // Last resort: single-syllable fallback with check
+  for (let i = 0; i < 5; i++) {
+    const pal = palettes[0]
+    let fb = pick(rng, pal.onsets) + pick(rng, pal.vowels) + pick(rng, pal.codas)
+    fb = fb.replace(/([^aeiou])\1/g, '$1')
+    if (isPronounceable(fb)) return fb.charAt(0).toUpperCase() + fb.slice(1)
+  }
+  // Absolute fallback — onset + vowel only
   const pal = palettes[0]
-  const fallback = pick(rng, pal.onsets) + pick(rng, pal.vowels) + pick(rng, pal.codas)
-  return fallback.charAt(0).toUpperCase() + fallback.slice(1)
+  const ab = pick(rng, pal.onsets) + pick(rng, pal.vowels)
+  return ab.charAt(0).toUpperCase() + ab.slice(1)
 }
 
 // ── Public API ──
