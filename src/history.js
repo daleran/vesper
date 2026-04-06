@@ -1,26 +1,26 @@
 /**
- * Mythic History generator — Layer 3.
- * Generates 5-8 historical events that bridge the creation myth to
- * regionally-distinct geography. Each event inherits concepts from
- * previous events, mutates pantheon agents, and tags spatial regions
- * with concept clusters.
+ * Mythic History generator — generates 5-8 historical events that
+ * bridge the creation myth to regionally-distinct geography.
+ * Mutates agents in world.agents directly and pushes spawned agents
+ * into the same array. Events and regions are added to the world.
  *
  * @import { ConceptGraph } from './concepts.js'
  * @import { CreationMyth, BeatRoles } from './recipes/index.js'
- * @import { Agent, AgentSeed, AgentRelationship, Pantheon } from './pantheon.js'
+ * @import { Agent, AgentSeed, AgentRelationship } from './pantheon.js'
+ * @import { World } from './world.js'
  */
 import { pick, weightedPick } from './utils.js'
 import { query } from './query.js'
 import { buildAgent } from './pantheon.js'
 import { nameAgents, nameRegion } from './naming.js'
-import { renderEventProse } from './historyProse.js'
+import { addAgent } from './world.js'
 import { ARCHETYPES, ARCHETYPE_NAMES } from './historyArchetypes.js'
 
 // ── Typedefs ──
 
 /**
  * @typedef {{
- *   agentIndex: number,
+ *   agentId: string,
  *   newState?: Agent['state'],
  *   newType?: Agent['type'],
  *   newRelationships?: AgentRelationship[],
@@ -38,8 +38,7 @@ import { ARCHETYPES, ARCHETYPE_NAMES } from './historyArchetypes.js'
  *   legacy: { roles: BeatRoles, concepts: string[] },
  *   agentChanges: AgentChange[],
  *   regionTags: string[],
- *   concepts: string[],
- *   prose: string
+ *   concepts: string[]
  * }} MythicEvent
  */
 
@@ -51,15 +50,6 @@ import { ARCHETYPES, ARCHETYPE_NAMES } from './historyArchetypes.js'
  *   taggedBy: number[],
  *   primaryEvent: number
  * }} Region
- */
-
-/**
- * @typedef {{
- *   events: MythicEvent[],
- *   regions: Region[],
- *   agents: Agent[],
- *   spawnedAgents: Agent[]
- * }} MythicHistory
  */
 
 // ── Archetype sequence weights by event position ──
@@ -83,23 +73,14 @@ const POSITION_WEIGHTS = [
 // ── Main entry ──
 
 /**
- * Generate mythic history from a creation myth and pantheon.
+ * Generate mythic history and write events, regions, and agent
+ * mutations into the world.
  * @param {ConceptGraph} graph
- * @param {CreationMyth} myth
- * @param {Pantheon} pantheon
+ * @param {World} world
  * @param {() => number} rng
- * @returns {MythicHistory}
  */
-export function generateHistory(graph, myth, pantheon, rng) {
-  // Clone agents — never mutate originals
-  const agents = pantheon.agents.map(a => /** @type {Agent} */ ({
-    ...a,
-    domains: [...a.domains],
-    relationships: a.relationships.map(r => ({ ...r })),
-  }))
-
-  /** @type {Agent[]} */
-  const spawnedAgents = []
+export function generateHistory(graph, world, rng) {
+  const myth = /** @type {CreationMyth} */ (world.myth)
 
   // Seed concept pool from creation myth
   const inheritedConcepts = [
@@ -120,10 +101,9 @@ export function generateHistory(graph, myth, pantheon, rng) {
   // Pick archetype sequence (no repeats)
   const archetypeSequence = pickArchetypeSequence(rng, eventCount)
 
-  /** @type {MythicEvent[]} */
-  const events = []
-  /** @type {Region[]} */
-  const regions = []
+  // Track agents spawned during history for naming at the end
+  /** @type {Agent[]} */
+  const spawnedDuringHistory = []
 
   // Event loop
   for (let i = 0; i < eventCount; i++) {
@@ -135,27 +115,24 @@ export function generateHistory(graph, myth, pantheon, rng) {
       rng,
       myth,
       inheritedConcepts: [...conceptSet],
-      agents,
-      spawnedAgents,
-      regions,
+      world,
       eventIndex: i,
       eventCount,
-      previousEvents: events,
     })
 
     // Apply agent mutations
-    applyAgentChanges(agents, spawnedAgents, event.agentChanges)
+    applyAgentChanges(world, event.agentChanges, spawnedDuringHistory)
 
     // Create regions from event consequence concepts
-    const newRegions = createRegions(graph, rng, event, regions.length)
+    const newRegions = createRegions(graph, rng, event, world.regions.length)
     for (const region of newRegions) {
-      regions.push(region)
+      world.regions.push(region)
       event.regionTags.push(region.id)
     }
 
     // For corruption and return, also tag an existing region if available
-    if ((archetype === 'corruption' || archetype === 'return') && regions.length > newRegions.length) {
-      const existingRegions = regions.filter(r => !newRegions.includes(r))
+    if ((archetype === 'corruption' || archetype === 'return') && world.regions.length > newRegions.length) {
+      const existingRegions = world.regions.filter(r => !newRegions.includes(r))
       const target = pick(rng, existingRegions)
       // Add some of the event's concepts to the existing region
       const toAdd = event.concepts.slice(0, 3).filter(c => !target.concepts.includes(c))
@@ -169,28 +146,20 @@ export function generateHistory(graph, myth, pantheon, rng) {
     // Append event concepts to inherited pool
     for (const c of event.concepts) conceptSet.add(c)
 
-    events.push(event)
+    world.events.push(event)
   }
 
   // Name regions using their concept clusters
   /** @type {Set<string>} */
   const usedRegionNames = new Set()
-  for (const region of regions) {
+  for (const region of world.regions) {
     region.name = nameRegion(graph, region.concepts, rng, usedRegionNames)
   }
 
-  // Name spawned agents using the naming system
-  if (spawnedAgents.length > 0) {
-    nameAgents(graph, myth, spawnedAgents, rng)
+  // Name agents spawned during history
+  if (spawnedDuringHistory.length > 0) {
+    nameAgents(graph, myth, spawnedDuringHistory, rng)
   }
-
-  // Render prose for each event
-  for (const event of events) {
-    const { prose } = renderEventProse(event, graph, rng)
-    event.prose = prose
-  }
-
-  return { events, regions, agents, spawnedAgents }
 }
 
 // ── Internal helpers ──
@@ -226,21 +195,21 @@ function pickArchetypeSequence(rng, count) {
 
 /**
  * Apply agent changes from an event.
- * @param {Agent[]} agents
- * @param {Agent[]} spawnedAgents
- * @param {import('./history.js').AgentChange[]} changes
+ * @param {World} world
+ * @param {AgentChange[]} changes
+ * @param {Agent[]} spawnedDuringHistory — tracking array for naming
  */
-function applyAgentChanges(agents, spawnedAgents, changes) {
+function applyAgentChanges(world, changes, spawnedDuringHistory) {
   for (const change of changes) {
     // Handle spawned agents
     if (change.spawned) {
       const newAgent = buildAgent(change.spawned)
-      spawnedAgents.push(newAgent)
+      addAgent(world, newAgent, 'history')
+      spawnedDuringHistory.push(newAgent)
     }
 
     // Apply state/type changes to existing agents
-    const allAgents = [...agents, ...spawnedAgents]
-    const agent = allAgents[change.agentIndex]
+    const agent = world.agents.find(a => a.id === change.agentId)
     if (!agent) continue
 
     if (change.newState) {

@@ -7,6 +7,7 @@
  * @import { CreationMyth } from './recipes/index.js'
  * @import { Agent } from './pantheon.js'
  * @import { MythicEvent, Region } from './history.js'
+ * @import { World } from './world.js'
  */
 import { query } from './query.js'
 import { walkFrom } from './walker.js'
@@ -21,38 +22,21 @@ import { findArena } from './queryHelpers.js'
  *   rng: () => number,
  *   myth: CreationMyth,
  *   inheritedConcepts: string[],
- *   agents: Agent[],
- *   spawnedAgents: Agent[],
- *   regions: Region[],
+ *   world: World,
  *   eventIndex: number,
  *   eventCount: number,
- *   previousEvents: MythicEvent[]
  * }} EventContext
  */
 
 // ── Helpers ──
 
 /**
- * Get all active agents from the array.
+ * Get all active agents from the world.
  * @param {Agent[]} agents
  * @returns {Agent[]}
  */
 function activeAgents(agents) {
   return agents.filter(a => a.state === 'active' && a.alive)
-}
-
-/**
- * Find the index of an agent in the combined agent list.
- * @param {Agent[]} agents
- * @param {Agent[]} spawned
- * @param {Agent} agent
- * @returns {number}
- */
-function agentIndex(agents, spawned, agent) {
-  const idx = agents.indexOf(agent)
-  if (idx >= 0) return idx
-  const sIdx = spawned.indexOf(agent)
-  return sIdx >= 0 ? agents.length + sIdx : 0
 }
 
 /**
@@ -101,8 +85,9 @@ function collectEventConcepts(situation, action, consequence, legacy) {
  * @returns {MythicEvent}
  */
 function war(ctx) {
-  const { graph, rng, agents, spawnedAgents, inheritedConcepts, eventIndex } = ctx
-  const active = activeAgents([...agents, ...spawnedAgents])
+  const { graph, rng, world, inheritedConcepts, eventIndex } = ctx
+  const { agents } = world
+  const active = activeAgents(agents)
 
   // Pick two agents — prefer those with rival relationships or opposing domains
   const agent1 = active.length > 0 ? pick(rng, active) : agents[0]
@@ -119,11 +104,8 @@ function war(ctx) {
   const chain = walkFrom(graph, rng, agent1.domains[0], 3, { preferRelations: ['collides', 'consumes'] })
   const scarConcept = chain.path[chain.path.length - 1]
 
-  const idx1 = agentIndex(agents, spawnedAgents, agent1)
-  const idx2 = agentIndex(agents, spawnedAgents, agent2)
-  const loserIdx = rng() < 0.5 ? idx1 : idx2
-  const loser = loserIdx === idx1 ? agent1 : agent2
-  const winner = loserIdx === idx1 ? agent2 : agent1
+  const loser = rng() < 0.5 ? agent1 : agent2
+  const winner = loser === agent1 ? agent2 : agent1
 
   const situation = {
     roles: { tension: agent1.domains[0], rival: agent2.domains[0], where: arena },
@@ -149,12 +131,11 @@ function war(ctx) {
     archetype: 'war',
     situation, action, consequence, legacy,
     agentChanges: [{
-      agentIndex: loserIdx,
+      agentId: loser.id,
       newState: rng() < 0.6 ? 'dead' : 'exiled',
     }],
     regionTags: [],
     concepts,
-    prose: '',
   }
 }
 
@@ -166,16 +147,15 @@ function war(ctx) {
  * @returns {MythicEvent}
  */
 function hubris(ctx) {
-  const { graph, rng, agents, spawnedAgents, inheritedConcepts, eventIndex } = ctx
-  const active = activeAgents([...agents, ...spawnedAgents])
-  const actor = active.length > 0 ? pick(rng, active) : agents[0]
+  const { graph, rng, world, inheritedConcepts, eventIndex } = ctx
+  const active = activeAgents(world.agents)
+  const actor = active.length > 0 ? pick(rng, active) : world.agents[0]
 
   const chain = walkFrom(graph, rng, actor.domains[0], 4, { preferRelations: ['consumes', 'transforms'] })
   const overreach = chain.path[chain.path.length - 1]
   const irony = chain.path.length > 2 ? chain.path[Math.floor(chain.path.length / 2)] : overreach
 
   const where = findArena(graph, rng, inheritedConcepts.slice(0, 5))
-  const idx = agentIndex(agents, spawnedAgents, actor)
 
   const situation = {
     roles: { actor: actor.name, domain: actor.domains[0], ambition: overreach },
@@ -199,12 +179,11 @@ function hubris(ctx) {
     archetype: 'hubris',
     situation, action, consequence, legacy,
     agentChanges: [{
-      agentIndex: idx,
+      agentId: actor.id,
       newState: rng() < 0.5 ? 'imprisoned' : 'transformed',
     }],
     regionTags: [],
     concepts: collectEventConcepts(situation, action, consequence, legacy),
-    prose: '',
   }
 }
 
@@ -216,16 +195,14 @@ function hubris(ctx) {
  * @returns {MythicEvent}
  */
 function exodus(ctx) {
-  const { graph, rng, agents, spawnedAgents, inheritedConcepts, eventIndex } = ctx
-  const active = activeAgents([...agents, ...spawnedAgents])
-  const migrant = active.length > 0 ? pick(rng, active) : agents[0]
+  const { graph, rng, world, inheritedConcepts, eventIndex } = ctx
+  const active = activeAgents(world.agents)
+  const migrant = active.length > 0 ? pick(rng, active) : world.agents[0]
 
   const threat = pickTensionConcept(graph, rng, inheritedConcepts)
   const origin = findArena(graph, rng, [threat])
   const chain = walkFrom(graph, rng, migrant.domains[0], 3, { preferRelations: ['transforms', 'produces'] })
   const destination = chain.path[chain.path.length - 1]
-
-  const idx = agentIndex(agents, spawnedAgents, migrant)
 
   const situation = {
     roles: { threat, origin, who: migrant.name },
@@ -249,12 +226,11 @@ function exodus(ctx) {
     archetype: 'exodus',
     situation, action, consequence, legacy,
     agentChanges: [{
-      agentIndex: idx,
+      agentId: migrant.id,
       newState: 'exiled',
     }],
     regionTags: [],
     concepts: collectEventConcepts(situation, action, consequence, legacy),
-    prose: '',
   }
 }
 
@@ -266,9 +242,9 @@ function exodus(ctx) {
  * @returns {MythicEvent}
  */
 function discovery(ctx) {
-  const { graph, rng, agents, spawnedAgents, myth, eventIndex } = ctx
-  const active = activeAgents([...agents, ...spawnedAgents])
-  const finder = active.length > 0 ? pick(rng, active) : agents[0]
+  const { graph, rng, world, myth, eventIndex } = ctx
+  const active = activeAgents(world.agents)
+  const finder = active.length > 0 ? pick(rng, active) : world.agents[0]
 
   // Walk from the flaw to find something hidden
   const flawConcept = myth.flaw.concepts.length > 0 ? pick(rng, myth.flaw.concepts) : myth.worldAfter
@@ -301,7 +277,6 @@ function discovery(ctx) {
     agentChanges: [],
     regionTags: [],
     concepts: collectEventConcepts(situation, action, consequence, legacy),
-    prose: '',
   }
 }
 
@@ -313,15 +288,13 @@ function discovery(ctx) {
  * @returns {MythicEvent}
  */
 function sacrifice(ctx) {
-  const { graph, rng, agents, spawnedAgents, inheritedConcepts, eventIndex } = ctx
-  const active = activeAgents([...agents, ...spawnedAgents])
-  const martyr = active.length > 0 ? pick(rng, active) : agents[0]
+  const { graph, rng, world, inheritedConcepts, eventIndex } = ctx
+  const active = activeAgents(world.agents)
+  const martyr = active.length > 0 ? pick(rng, active) : world.agents[0]
 
   const threat = pickTensionConcept(graph, rng, inheritedConcepts)
   const chain = walkFrom(graph, rng, martyr.domains[0], 3, { preferRelations: ['transforms', 'evokes'] })
   const remnant = chain.path[chain.path.length - 1]
-
-  const idx = agentIndex(agents, spawnedAgents, martyr)
 
   const situation = {
     roles: { threat, defender: martyr.name, stakes: martyr.domains[0] },
@@ -345,12 +318,11 @@ function sacrifice(ctx) {
     archetype: 'sacrifice',
     situation, action, consequence, legacy,
     agentChanges: [{
-      agentIndex: idx,
+      agentId: martyr.id,
       newState: rng() < 0.5 ? 'dead' : 'transformed',
     }],
     regionTags: [],
     concepts: collectEventConcepts(situation, action, consequence, legacy),
-    prose: '',
   }
 }
 
@@ -362,15 +334,13 @@ function sacrifice(ctx) {
  * @returns {MythicEvent}
  */
 function corruption(ctx) {
-  const { graph, rng, agents, spawnedAgents, myth, eventIndex } = ctx
-  const active = activeAgents([...agents, ...spawnedAgents])
-  const victim = active.length > 0 ? pick(rng, active) : agents[0]
+  const { graph, rng, world, myth, eventIndex } = ctx
+  const active = activeAgents(world.agents)
+  const victim = active.length > 0 ? pick(rng, active) : world.agents[0]
 
   const flawConcept = myth.flaw.concepts.length > 0 ? pick(rng, myth.flaw.concepts) : myth.worldAfter
   const chain = walkFrom(graph, rng, flawConcept, 3, { preferRelations: ['transforms', 'consumes'] })
   const taint = chain.path[chain.path.length - 1]
-
-  const idx = agentIndex(agents, spawnedAgents, victim)
 
   const situation = {
     roles: { source: flawConcept, target: victim.name, purity: victim.domains[0] },
@@ -394,13 +364,12 @@ function corruption(ctx) {
     archetype: 'corruption',
     situation, action, consequence, legacy,
     agentChanges: [{
-      agentIndex: idx,
+      agentId: victim.id,
       newState: 'transformed',
       newType: victim.type === 'god' ? 'demon' : undefined,
     }],
     regionTags: [],
     concepts: collectEventConcepts(situation, action, consequence, legacy),
-    prose: '',
   }
 }
 
@@ -412,9 +381,9 @@ function corruption(ctx) {
  * @returns {MythicEvent}
  */
 function sundering(ctx) {
-  const { graph, rng, agents, spawnedAgents, eventIndex } = ctx
-  const active = activeAgents([...agents, ...spawnedAgents])
-  const original = active.length > 0 ? pick(rng, active) : agents[0]
+  const { graph, rng, world, eventIndex } = ctx
+  const active = activeAgents(world.agents)
+  const original = active.length > 0 ? pick(rng, active) : world.agents[0]
 
   // Walk to find what the split produces
   const chain = walkFrom(graph, rng, original.domains[0], 3, { preferRelations: ['transforms', 'produces'] })
@@ -423,8 +392,6 @@ function sundering(ctx) {
   // Secondary domain for the spawned agent
   const nearby = query(graph).nearby(fragment, 1).exclude(original.domains[0], fragment).get()
   const secondDomain = nearby.length > 0 ? pick(rng, nearby) : fragment
-
-  const idx = agentIndex(agents, spawnedAgents, original)
 
   const situation = {
     roles: { unity: original.name, tension: original.domains[0] },
@@ -448,7 +415,7 @@ function sundering(ctx) {
     archetype: 'sundering',
     situation, action, consequence, legacy,
     agentChanges: [{
-      agentIndex: idx,
+      agentId: original.id,
       spawned: {
         domains: [fragment, secondDomain],
         type: original.type === 'god' ? 'demi-god' : 'spirit',
@@ -459,7 +426,6 @@ function sundering(ctx) {
     }],
     regionTags: [],
     concepts: collectEventConcepts(situation, action, consequence, legacy),
-    prose: '',
   }
 }
 
@@ -471,14 +437,14 @@ function sundering(ctx) {
  * @returns {MythicEvent}
  */
 function returnArchetype(ctx) {
-  const { graph, rng, agents, spawnedAgents, myth, eventIndex } = ctx
+  const { graph, rng, world, myth, eventIndex } = ctx
 
   const flawConcept = myth.flaw.concepts.length > 0 ? pick(rng, myth.flaw.concepts) : myth.worldAfter
   const chain = walkFrom(graph, rng, flawConcept, 3, { preferRelations: ['produces', 'transforms'] })
   const manifestation = chain.path[chain.path.length - 1]
 
   // Try to find a sleeping/forgotten agent to reawaken
-  const dormant = [...agents, ...spawnedAgents].filter(
+  const dormant = world.agents.filter(
     a => a.state === 'sleeping' || a.state === 'forgotten' || a.state === 'imprisoned'
   )
   const reawakened = dormant.length > 0 ? pick(rng, dormant) : null
@@ -490,7 +456,7 @@ function returnArchetype(ctx) {
 
   if (reawakened) {
     changes.push({
-      agentIndex: agentIndex(agents, spawnedAgents, reawakened),
+      agentId: reawakened.id,
       newState: 'active',
     })
   }
@@ -499,7 +465,7 @@ function returnArchetype(ctx) {
   const nearby = query(graph).nearby(manifestation, 1).exclude(flawConcept, manifestation).get()
   const demonDomain = nearby.length > 0 ? pick(rng, nearby) : manifestation
   changes.push({
-    agentIndex: 0,
+    agentId: world.agents[0].id,
     spawned: {
       domains: [manifestation, demonDomain],
       type: 'demon',
@@ -533,7 +499,6 @@ function returnArchetype(ctx) {
     agentChanges: changes,
     regionTags: [],
     concepts: collectEventConcepts(situation, action, consequence, legacy),
-    prose: '',
   }
 }
 
