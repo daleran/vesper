@@ -11,6 +11,8 @@ export default [
         requestAnimationFrame: 'readonly',
         cancelAnimationFrame: 'readonly',
         performance: 'readonly',
+        navigator: 'readonly',
+        setTimeout: 'readonly',
       },
     },
     rules: {

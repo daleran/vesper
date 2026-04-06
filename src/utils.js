@@ -48,10 +48,51 @@ export function lerp(a, b, t) {
 }
 
 /**
- * Smooth step interpolation (ease in/out).
- * @param {number} t — 0..1
- * @returns {number}
+ * Pick a random element from an array using the seeded RNG.
+ * @template T
+ * @param {() => number} rng
+ * @param {T[]} array
+ * @returns {T}
  */
-export function smoothstep(t) {
-  return t * t * (3 - 2 * t)
+export function pick(rng, array) {
+  return array[Math.floor(rng() * array.length)]
+}
+
+/**
+ * Pick n unique elements from array using Fisher-Yates partial shuffle.
+ * If n >= array.length, returns a shuffled copy of the full array.
+ * @template T
+ * @param {() => number} rng
+ * @param {T[]} array
+ * @param {number} n
+ * @returns {T[]}
+ */
+export function pickN(rng, array, n) {
+  const copy = array.slice()
+  const count = Math.min(n, copy.length)
+  for (let i = 0; i < count; i++) {
+    const j = i + Math.floor(rng() * (copy.length - i))
+    ;[copy[i], copy[j]] = [copy[j], copy[i]]
+  }
+  return copy.slice(0, count)
+}
+
+/**
+ * Pick a random item from an array using weights (parallel arrays).
+ * Weights do not need to sum to 1.
+ * @template T
+ * @param {() => number} rng
+ * @param {T[]} items
+ * @param {number[]} weights
+ * @returns {T}
+ */
+export function weightedPick(rng, items, weights) {
+  let total = 0
+  for (const w of weights) total += w
+  let r = rng() * total
+  for (let i = 0; i < items.length; i++) {
+    r -= weights[i]
+    if (r <= 0) return items[i]
+  }
+  return items[items.length - 1]
 }
