@@ -1,8 +1,13 @@
 import { TRIPLES, buildGraph } from './concepts.js'
 import { generateMyth } from './myth.js'
-import { renderProse } from './prose.js'
 import { generatePantheon } from './pantheon.js'
 import { generateHistory } from './history.js'
+import { generateGeogony } from './geogony.js'
+import { generateBiogony } from './biogony.js'
+import { generateAnthropogony } from './anthropogony.js'
+import { generateChorogony } from './chorogony.js'
+import { generateHierogony } from './hierogony.js'
+import { createWorld } from './world.js'
 import { buildControls, showEmptyState, displayMyth, displayMythBatch } from './ui.js'
 import { buildExplorer } from './explorer.js'
 import { mulberry32, hashSeed, pick } from './utils.js'
@@ -48,12 +53,29 @@ for (const [id, label] of /** @type {[string, string][]} */ ([['generate', 'gene
 switchTab('generate')
 
 // ── Generate tab ──
-buildControls(controls, ({ seed }) => {
-  const myth = generateMyth(graph, seed)
-  const pantheon = generatePantheon(graph, myth, mulberry32(hashSeed(seed + '-pantheon')))
-  const history = generateHistory(graph, myth, pantheon, mulberry32(hashSeed(seed + '-history')))
-  const { prose } = renderProse(myth, graph, pantheon)
-  displayMyth(output, prose, myth, pantheon, history)
+/**
+ * Build a complete world from a seed.
+ * @param {string} seed
+ * @param {string} [forceRecipe]
+ * @returns {import('./world.js').World}
+ */
+function buildWorld(seed, forceRecipe) {
+  const world = createWorld(seed)
+  world.myth = generateMyth(graph, seed, forceRecipe)
+  generatePantheon(graph, world, mulberry32(hashSeed(seed + '-pantheon')))
+  generateHistory(graph, world, mulberry32(hashSeed(seed + '-history')))
+  generateGeogony(graph, world, mulberry32(hashSeed(seed + '-geogony')))
+  generateBiogony(graph, world, mulberry32(hashSeed(seed + '-biogony')))
+  generateAnthropogony(graph, world, mulberry32(hashSeed(seed + '-anthropogony')))
+  generateChorogony(graph, world, mulberry32(hashSeed(seed + '-chorogony')))
+  generateHierogony(graph, world, mulberry32(hashSeed(seed + '-hierogony')))
+  return world
+}
+
+const ui = buildControls(controls, ({ seed }) => {
+  const world = buildWorld(seed)
+  window.location.hash = `seed=${encodeURIComponent(seed)}`
+  displayMyth(output, world)
 }, (count) => {
   // Build recipe schedule: one of each, then random fills for even distribution
   const recipeNames = RECIPES.map(r => r.name)
@@ -69,16 +91,22 @@ buildControls(controls, ({ seed }) => {
     [schedule[i], schedule[j]] = [schedule[j], schedule[i]]
   }
 
-  const items = []
+  /** @type {import('./world.js').World[]} */
+  const worlds = []
   for (let i = 0; i < count; i++) {
     const seed = Math.random().toString(36).slice(2, 10)
-    const myth = generateMyth(graph, seed, schedule[i])
-    const pantheon = generatePantheon(graph, myth, mulberry32(hashSeed(seed + '-pantheon')))
-    const history = generateHistory(graph, myth, pantheon, mulberry32(hashSeed(seed + '-history')))
-    const { prose } = renderProse(myth, graph, pantheon)
-    items.push({ prose, myth, pantheon, history })
+    worlds.push(buildWorld(seed, schedule[i]))
   }
-  displayMythBatch(output, items)
+  displayMythBatch(output, worlds)
 })
 
-showEmptyState(output)
+// ── Seed permalink: auto-generate from URL hash ──
+const hashParams = new URLSearchParams(window.location.hash.slice(1))
+const hashSeedValue = hashParams.get('seed')
+if (hashSeedValue) {
+  ui.setSeed(hashSeedValue)
+  const world = buildWorld(hashSeedValue)
+  displayMyth(output, world)
+} else {
+  showEmptyState(output)
+}

@@ -349,6 +349,20 @@ export function nameAgents(graph, myth, agents, rng) {
 }
 
 /**
+ * Generate a phoneme-driven name for the world itself.
+ * Uses 100% world signature palette (no agent blending).
+ * @param {ConceptGraph} graph
+ * @param {CreationMyth} myth
+ * @param {() => number} rng
+ * @returns {string}
+ */
+export function nameWorld(graph, myth, rng) {
+  const world = buildWorldSignature(graph, myth)
+  const syllableCount = rng() < 0.4 ? 2 : 3
+  return generateName(rng, world.palettes, world.weights, syllableCount)
+}
+
+/**
  * Generate a phoneme-driven name for a region based on its concept cluster.
  * No world-signature blending -- regions should sound distinct from each other.
  * @param {ConceptGraph} graph

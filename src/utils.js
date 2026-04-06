@@ -1,4 +1,8 @@
 /**
+ * @import { ConceptGraph } from './concepts.js'
+ */
+
+/**
  * Seeded PRNG — mulberry32. Returns a function that produces
  * deterministic floats in [0, 1) from a 32-bit seed.
  * @param {number} seed
@@ -95,4 +99,80 @@ export function weightedPick(rng, items, weights) {
     if (r <= 0) return items[i]
   }
   return items[items.length - 1]
+}
+
+/**
+ * Score concept overlap between two sets.
+ * Direct match = 2, 1-hop neighbor match = 1.
+ * @param {ConceptGraph} graph
+ * @param {string[]} setA
+ * @param {string[]} setB
+ * @returns {number}
+ */
+export function conceptOverlap(graph, setA, setB) {
+  const bSet = new Set(setB)
+  let score = 0
+
+  for (const c of setA) {
+    if (bSet.has(c)) {
+      score += 2
+      continue
+    }
+    const edges = graph.get(c)
+    if (!edges) continue
+    for (const e of edges) {
+      if (bSet.has(e.concept)) {
+        score += 1
+        break
+      }
+    }
+  }
+
+  return score
+}
+
+/**
+ * Resolve terrain affinity for a concept cluster.
+ * Returns top 1-2 terrain type names by concept overlap.
+ * @param {ConceptGraph} graph
+ * @param {string[]} entityConcepts
+ * @param {{ name: string, concepts: string[] }[]} terrainTypes
+ * @returns {string[]}
+ */
+export function resolveTerrainAffinity(graph, entityConcepts, terrainTypes) {
+  if (terrainTypes.length === 0) return []
+
+  const scored = terrainTypes.map(t => ({
+    name: t.name,
+    score: conceptOverlap(graph, entityConcepts, t.concepts),
+  })).sort((a, b) => b.score - a.score)
+
+  const result = [scored[0].name]
+  if (scored.length > 1 && scored[1].score > 0) {
+    result.push(scored[1].name)
+  }
+  return result
+}
+
+/**
+ * Score an entity against regions by concept overlap + terrain affinity.
+ * Returns top-N regions sorted by score (highest first).
+ * @template {{ concepts: string[], terrainTypes: string[] }} R
+ * @param {ConceptGraph} graph
+ * @param {{ concepts: string[], terrainAffinity: string[] }} entity
+ * @param {R[]} regions
+ * @param {number} [topN=2]
+ * @returns {{ region: R, score: number }[]}
+ */
+export function scoreEntityPlacement(graph, entity, regions, topN = 2) {
+  /** @type {{ region: R, score: number }[]} */
+  const scored = regions.map(r => {
+    let score = conceptOverlap(graph, entity.concepts, r.concepts)
+    for (const ta of entity.terrainAffinity) {
+      if (r.terrainTypes.includes(ta)) score += 2
+    }
+    return { region: r, score }
+  })
+  scored.sort((a, b) => b.score - a.score)
+  return scored.slice(0, topN)
 }

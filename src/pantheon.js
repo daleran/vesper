@@ -1,16 +1,17 @@
 /**
- * Pantheon generator — Layer 2.
- * Takes a creation myth and produces a pantheon of 3-7 agents with
- * domains, dispositions, titles, relationships, and states.
+ * Pantheon generator — builds agents from a creation myth and writes
+ * them into the shared World object.
  *
  * @import { ConceptGraph } from './concepts.js'
  * @import { CreationMyth } from './recipes/index.js'
+ * @import { World } from './world.js'
  */
 import { nameAgents } from './naming.js'
 import { query } from './query.js'
 import { walkFrom } from './walker.js'
 import { pick } from './utils.js'
 import { SHAPES } from './pantheonShapes.js'
+import { addAgent } from './world.js'
 
 // ── Typedefs ──
 
@@ -26,13 +27,14 @@ import { SHAPES } from './pantheonShapes.js'
 
 /**
  * @typedef {{
- *   target: number,
+ *   target: string,
  *   kind: 'parent'|'rival'|'servant'|'betrayed-by'|'sibling'|'creator'|'slayer'|'ward'
  * }} AgentRelationship
  */
 
 /**
  * @typedef {{
+ *   id: string,
  *   name: string,
  *   title: string,
  *   type: 'god'|'demi-god'|'spirit'|'demon'|'ancestor'|'herald',
@@ -41,15 +43,10 @@ import { SHAPES } from './pantheonShapes.js'
  *   relationships: AgentRelationship[],
  *   mythRole: string,
  *   alive: boolean,
- *   state: 'active'|'dead'|'sleeping'|'imprisoned'|'exiled'|'transformed'|'forgotten'
+ *   state: 'active'|'dead'|'sleeping'|'imprisoned'|'exiled'|'transformed'|'forgotten',
+ *   origin: 'pantheon'|'history'|'landscape',
+ *   worshippedBy: string[],
  * }} Agent
- */
-
-/**
- * @typedef {{
- *   agents: Agent[],
- *   tensions: string[]
- * }} Pantheon
  */
 
 // ── Constants ──
@@ -79,13 +76,14 @@ const RELATION_VERBS = /** @type {Record<string, string>} */ ({
 // ── Main entry ──
 
 /**
- * Generate a pantheon from a creation myth.
+ * Generate a pantheon from a creation myth and add agents to the world.
  * @param {ConceptGraph} graph
- * @param {CreationMyth} myth
+ * @param {World} world
  * @param {() => number} rng
- * @returns {Pantheon}
  */
-export function generatePantheon(graph, myth, rng) {
+export function generatePantheon(graph, world, rng) {
+  const myth = /** @type {CreationMyth} */ (world.myth)
+
   // 1. Extract primary agents from recipe-specific shape
   const shapeFn = SHAPES[myth.recipe]
   const seeds = shapeFn ? shapeFn(graph, myth, rng) : []
@@ -93,8 +91,12 @@ export function generatePantheon(graph, myth, rng) {
   // 2. Derive secondary agents if needed
   const allSeeds = deriveSecondaryAgents(graph, seeds, myth, rng)
 
-  // 3. Build agent objects
-  const agents = allSeeds.map(s => buildAgent(s))
+  // 3. Build agent objects and add to world
+  const agents = allSeeds.map(s => {
+    const agent = buildAgent(s)
+    addAgent(world, agent, 'pantheon')
+    return agent
+  })
 
   // 3.5. Assign phoneme-driven names
   nameAgents(graph, myth, agents, rng)
@@ -112,21 +114,21 @@ export function generatePantheon(graph, myth, rng) {
   determineStates(agents, myth)
 
   // 8. Collect tensions
-  const tensions = collectTensions(graph, agents)
-
-  return { agents, tensions }
+  world.tensions = collectTensions(graph, agents)
 }
 
 // ── Pipeline steps ──
 
 /**
  * Build an Agent from an AgentSeed, filling placeholder fields.
+ * The id and origin are assigned later by addAgent().
  * @param {AgentSeed} s
  * @returns {Agent}
  */
 export function buildAgent(s) {
   const primaryDomain = s.domains[0] ?? 'unknown'
   return {
+    id: '',
     name: primaryDomain.charAt(0).toUpperCase() + primaryDomain.slice(1),
     title: '',
     type: s.type,
@@ -136,6 +138,8 @@ export function buildAgent(s) {
     mythRole: s.mythRole,
     alive: s.alive,
     state: s.state,
+    origin: /** @type {const} */ ('pantheon'),
+    worshippedBy: [],
   }
 }
 
@@ -308,8 +312,8 @@ function assignRelationships(graph, agents) {
     for (let j = i + 1; j < agents.length; j++) {
       const rel = findRelationship(graph, agents[i], agents[j])
       if (rel) {
-        agents[i].relationships.push({ target: j, kind: rel.kindIJ })
-        agents[j].relationships.push({ target: i, kind: rel.kindJI })
+        agents[i].relationships.push({ target: agents[j].id, kind: rel.kindIJ })
+        agents[j].relationships.push({ target: agents[i].id, kind: rel.kindJI })
       }
     }
   }
@@ -320,10 +324,10 @@ function assignRelationships(graph, agents) {
     for (let j = 0; j < agents.length; j++) {
       if (i === j) continue
       if (agents[j].mythRole === 'derived' || agents[j].mythRole === 'echo') {
-        const alreadyLinked = agents[i].relationships.some(r => r.target === j)
+        const alreadyLinked = agents[i].relationships.some(r => r.target === agents[j].id)
         if (!alreadyLinked) {
-          agents[i].relationships.push({ target: j, kind: 'creator' })
-          agents[j].relationships.push({ target: i, kind: 'ward' })
+          agents[i].relationships.push({ target: agents[j].id, kind: 'creator' })
+          agents[j].relationships.push({ target: agents[i].id, kind: 'ward' })
         }
       }
     }
