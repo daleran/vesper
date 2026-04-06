@@ -8,22 +8,23 @@ Update it when new systems or patterns are introduced.
 
 ## Project Overview
 
-**Vesper / First Light** — A procedural creation myth generator built in the browser.
-Given a seed and a weirdness dial, it generates a creation myth rendered as three prose
-fragments (priestly hymn, oral tradition, heretical whisper). The same seed always
-produces the same myth. Higher weirdness produces stranger, more distant connections.
+**Vesper / First Light** — A procedural world generator for an exploration game.
+Given a seed, it generates a complete world — gods, histories, cultures, regions — as
+structured data across cascading layers. The same seed always produces the same world.
+Higher weirdness produces stranger, more distant connections.
 
-The generation cascade: **Concept Graph → Graph Walk → Myth Structure → Pantheon → History → Prose**
+The generation cascade: **Concept Graph → Graph Walk → Myth Structure → Pantheon → History → Geogony → Biogony → Anthropogony → Chorogony → Hierogony**
 
-Future layers will build on top of the myth: geography, ecology, and culture emerging
-from the story rather than the other way around.
+Future layers will build on top of the myth: cultures and politics emerging
+from the story rather than the other way around. All layers produce structured data —
+prose is exclusively the scene renderer's concern.
 
 Built with: **Vite**, **Vanilla JS**, **HTML/CSS**.
 No canvas. No frameworks. No production dependencies.
 Deployed to: **Cloudflare Pages**.
 
 ### Current Layer
-Layer 3: Mythic history — event chains bridge creation myth to regional geography.
+Layer 6: Hierogony — what peoples believe and how belief divides them.
 
 ---
 
@@ -90,21 +91,31 @@ A layer is done when it produces unexpected results, not just correct ones.
 
 ```
 src/
-  main.js        — Entry point. Wires graph, myth, prose, pantheon, and UI.
-  utils.js       — mulberry32 PRNG, hashSeed, clamp, lerp, pick, pickN, weightedPick.
+  main.js        — Entry point. Wires graph, world, and UI. buildWorld() orchestrates layers.
+  world.js       — World typedef, createWorld(), addAgent(), findAgent(). Shared mutable state.
+  utils.js       — mulberry32 PRNG, hashSeed, clamp, lerp, pick, pickN, weightedPick, conceptOverlap, scoreEntityPlacement.
   concepts.js    — Concept graph data (triples array) + buildGraph() + CONCEPTS set.
   walker.js      — walkFrom(), findCollisions(), findParadoxes(), walkAll().
   myth.js        — Thin orchestrator: picks a recipe, runs it, stamps seed.
-  prose.js       — renderProse(myth, graph) — assembles prose from beat roles + sensory edges.
-  pantheon.js    — generatePantheon(graph, myth, rng) → Pantheon. Agent pipeline.
+  pantheon.js    — generatePantheon(graph, world, rng). Pushes agents into world.
   pantheonShapes.js — Per-recipe shape functions: SHAPES registry keyed by recipe name.
-  naming.js      — Phoneme-driven naming: palettes, syllable gen, nameAgents(), nameRegion().
-  history.js     — generateHistory(graph, myth, pantheon, rng) → MythicHistory. Event chain.
+  naming.js      — Phoneme-driven naming: palettes, syllable gen, nameWorld(), nameAgents(), nameRegion().
+  history.js     — generateHistory(graph, world, rng). Mutates agents, pushes events/regions.
   historyArchetypes.js — ARCHETYPES registry: 8 event archetype functions.
-  historyProse.js — renderEventProse(event, graph, rng) → prose for mythic events.
+  geogony.js     — generateGeogony(graph, world, rng). Sets world.geogony, adds landscape agents.
+  geogonyArchetypes.js — GEOGONY_SHAPES registry: 8 formation archetype functions.
+  biogony.js     — generateBiogony(graph, world, rng). Sets world.biogony (lifeforms, flaw life, extinctions).
+  biogonyArchetypes.js — BIOGONY_SHAPES registry: 6 life-origin archetype functions.
+  anthropogony.js — generateAnthropogony(graph, world, rng). Sets world.anthropogony (peoples, memory, disputes).
+  anthropogonyArchetypes.js — ANTHROPOGONY_SHAPES registry: 6 people-origin archetype functions.
+  chorogony.js   — generateChorogony(graph, world, rng). Sets world.chorogony (enriched regions).
+  hierogony.js   — generateHierogony(graph, world, rng). Sets world.hierogony (religions, heresies, sacred sites, practices).
+  hierogonyArchetypes.js — HIEROGONY_SHAPES registry: 6 belief-origin archetype functions.
+  archetypeSelection.js — Shared recipe group sets + applyRecipeBonuses() helper for layer archetype selection.
+  conceptResolvers.js — Shared concept resolution: expandConceptCluster, resolveShape, resolveSubstance, resolvePhysicalTraits.
   query.js       — Chainable concept graph query builder. query(graph).where().or().get().
   queryHelpers.js — Reusable semantic concept finders: findTool, findVoid, findArena, etc.
-  ui.js          — buildUI() — DOM controls (seed, generate) and output display.
+  ui.js          — buildControls(), displayMyth(container, world) — structured data viewer.
   recipes/
     index.js       — CreationMyth/BeatRoles/MythRecipe typedefs, RECIPES registry array.
     soloGod.js     — Recipe: single god from force/element creates world from void.
@@ -126,14 +137,27 @@ src/
     mourning.js    — Recipe: world built as memorial to something that died before creation.
     taboo.js       — Recipe: forbidden act creates the world as consequence.
 index.html       — App shell: header#controls + main#output. No canvas.
-css/main.css     — Dark theme, centered layout, serif typography for prose.
+css/main.css     — Dark theme, centered layout, serif typography.
 ```
 
 Adding a recipe means writing `src/recipes/myRecipe.js` exporting a `MythRecipe` object,
 then pushing it onto the `RECIPES` array in `src/recipes/index.js`.
 
-Adding a generation layer (e.g. Geography) means adding `src/geography.js` and wiring
-it in `main.js`. No registration, no manifests, no boot loaders.
+Adding a generation layer means adding `src/newLayer.js` that takes `(graph, world, rng)`
+and mutates the shared World object. Wire it in `main.js`'s `buildWorld()`. No registration,
+no manifests, no boot loaders.
+
+**Layer conventions:**
+- Archetype files: `src/{layerName}Archetypes.js` exporting `{LAYER}_SHAPES` registry
+  and `{LAYER}_NAMES` array.
+- Archetype context: `{ graph, rng, myth, world }` base shape (matching geogony/biogony/
+  anthropogony pattern), with layer-specific fields added as needed.
+- Use `archetypeSelection.js` recipe group sets and `applyRecipeBonuses()` for weighted
+  archetype selection instead of defining local recipe sets.
+- Use `conceptResolvers.js` helpers (`expandConceptCluster`, `resolveShape`, etc.) for
+  concept expansion and attribute resolution.
+- Use `scoreEntityPlacement()` from `utils.js` for placing entities into regions.
+- Add a new entry to `LAYER_RENDERERS` in `ui.js` for the layer's UI panel.
 
 ---
 
@@ -184,17 +208,6 @@ specific category first (e.g. `is item`) and widens to semantic matches (e.g. an
 with a `shape` edge) when the pool is too shallow. Recipes use these instead of rigid
 category queries.
 
-### Prose Rendering
-`renderProse(myth, graph)` returns `{ prose: string, concepts: string[] }`. For each
-beat, it gathers sensory data (color, sound, texture, shape, evokes) from the graph for
-all concepts in the roles, selects a template from the appropriate pool, and calls it
-with the roles and sensory map. After the core template, beat-specific elaborators walk
-the graph from the beat's primary concept (evokes/rhymes/sensory chains) to add 1-2
-sentences of associative detail. The act pool is selected by the `verb` role (struck, slew, gave_birth, sacrificed,
-split, collided, stole, dreamed, corrupted, merged, overthrew, wandered, named,
-wove, spread, mourned, transgressed).
-Concepts discovered during elaboration are collected and returned alongside the prose.
-
 ### Seeded PRNG
 All randomness in generation flows from `mulberry32(hashSeed(seed))`.
 The same seed always produces the same myth. Never use `Math.random()` in generation code.
@@ -213,33 +226,33 @@ Terminals: `.get()` → `string[]`, `.first(rng?)`, `.random(rng, n?)`.
 Ranking: `.rank(subjects)` returns a `RankedQuery` scored by 1-hop neighbor overlap.
 `RankedQuery` terminals: `.get()`, `.first()`, `.pickTop(rng, n)`, `.pickWeighted(rng)`, `.random(rng, n?)`.
 
-### Sensory-Aware Prose
-Prose templates receive both beat roles and a sensory map. Templates are functions
-`(roles, sensoryMap) => string` that can optionally reference sensory edges (color,
-sound, texture, shape, evokes) from the concept graph to describe concepts in
-language shaped by their nature. A void of sleep is described differently than a
-void of pit because each has different sensory edges.
+### World Object
+All generation layers write into a single mutable `World` object (`src/world.js`).
+No layer is "done" — each enriches the shared state. `createWorld(seed)` produces
+an empty shell; layers fill it sequentially.
 
-### Named Prose
-`renderProse(myth, graph, pantheon?)` accepts an optional pantheon. When provided,
-deity names are substituted into agent-like roles (actor, slain, parent, child,
-owner, partner, splitter, agent1, agent2, fragment1, fragment2, dead, unity, source)
-before templates render. Thing/place roles (void, tool, target, product, weapon,
-place, treasure, material, word, law, wound, sacrificed) keep their raw concept
-names. Sensory lookups and elaboration always use original concept names so graph
-edges resolve correctly. The pipeline order is: myth → pantheon → prose.
+**Structure:** `seed`, `myth`, `agents[]`, `tensions[]`, `events[]`, `regions[]`, `geogony`, `biogony`, `anthropogony`, `chorogony`, `hierogony`.
+
+**Agent registry:** `world.agents` is the single canonical array. All agents — whether
+from the pantheon, spawned during history, or born as landscape spirits — live here.
+Each agent has a stable `id` (string, e.g. `"agent-0"`) assigned by `addAgent()` and
+an `origin` field (`'pantheon'`|`'history'`|`'landscape'`) for layer provenance.
+Relationships reference agents by `id`, not index.
+
+**`addAgent(world, agent, origin)`** — the only way agents enter the array.
+**`findAgent(world, id)`** — lookup by id.
 
 ### Pantheon System
-`generatePantheon(graph, myth, rng)` returns `{ agents: Agent[], tensions: string[] }`.
+`generatePantheon(graph, world, rng)` pushes agents into `world.agents` via `addAgent()`.
 Uses a separate RNG stream (`seed + '-pantheon'`) to isolate from myth generation.
 
 **Pipeline:** Extract primary agents → Derive secondary agents → Assign dispositions →
 Generate titles → Assign relationships → Determine states.
 
-**Agent structure:** name, title (epithet), type (god/demi-god/spirit/demon/ancestor/herald),
+**Agent structure:** id, name, title (epithet), type (god/demi-god/spirit/demon/ancestor/herald),
 domains (2-4 concepts), disposition (from `evokes` edges), relationships (rival/parent/
 sibling/slayer/creator/ward), mythRole, alive, state (active/dead/sleeping/imprisoned/
-exiled/transformed/forgotten).
+exiled/transformed/forgotten), origin.
 
 **Shape registry:** `SHAPES` in `pantheonShapes.js` — keyed by recipe name, each function
 reads its recipe's `extra` field to extract primary agents. No switch/case. Adding a new
@@ -275,6 +288,8 @@ spirits until 3-7 total agents.
 shared `is` category → sibling. Myth-derived: creator mythRole + derived → creator/ward.
 
 ### Naming System
+`nameWorld(graph, myth, rng)` generates a 2-3 syllable world name from the myth's
+concept sound profile (100% world signature, no agent blending).
 `nameAgents(graph, myth, agents, rng)` assigns phoneme-driven names to pantheon agents.
 Called inside `generatePantheon()` after building agents, before dispositions.
 
@@ -299,12 +314,77 @@ ancestor 2, herald 2. Monosyllabic gods feel ancient.
 names driven purely by a region's concept cluster sound profile. No world-signature
 blending — regions should sound distinct from each other.
 
-### Mythic History System
-`generateHistory(graph, myth, pantheon, rng)` returns `MythicHistory`.
-Uses a separate RNG stream (`seed + '-history'`) to isolate from myth and pantheon.
+### Geogony System
+`generateGeogony(graph, world, rng)` sets `world.geogony` and adds landscape agents
+to `world.agents`. Uses a separate RNG stream (`seed + '-geogony'`).
 
-**Pipeline:** Clone agents → Pick archetype sequence → Event loop (5–8 events) →
-Name regions → Name spawned agents → Render prose.
+**Pipeline:** Name world → Select archetype → Run shape function → Expand terrain
+seeds → Expand landmark seeds → Derive materials/climate → Spawn landscape agents →
+Enrich history regions.
+
+**8 formation archetypes** in `geogonyArchetypes.js`, keyed by name:
+- **Body** — land is a god's corpse (mountains = bones, rivers = veins)
+- **Debris** — land is wreckage from a cosmic event (shards, rubble)
+- **Growth** — land grew from a seed, root, or coral (organic terrain)
+- **Sediment** — land settled from a substance (ash, dust, salt, silt)
+- **Sculpture** — land was deliberately shaped (too regular, too purposeful)
+- **Precipitation** — land fell from above (star-dust, shattered moon)
+- **Extrusion** — land pulled up from below (spires, pillars, ridges)
+- **Crystallization** — land condensed from energy/sound/thought (faceted)
+
+**Archetype selection:** Weighted by cosmogony recipe and pantheon state. Dead god
+favors body (+4), violent myths favor debris (+3), organic myths favor growth (+3),
+concept-based signals boost precipitation/extrusion/crystallization.
+
+**World naming:** `nameWorld(graph, myth, rng)` in `naming.js` generates a 2-3
+syllable world name using 100% world signature palette (no agent blending).
+
+**Landscape agents:** 1-3 spirits spawned from ground/water/sky substances (~40%
+chance each). Added to `world.agents` with `origin: 'landscape'`.
+
+**Region enrichment:** Each history region gets a `RegionEnrichment` with terrain
+types, landmarks, climate, and dominant substance assigned by concept overlap scoring.
+
+### Biogony System
+`generateBiogony(graph, world, rng)` sets `world.biogony` with lifeforms, flaw
+creatures, and extinctions. Uses a separate RNG stream (`seed + '-biogony'`).
+
+**Pipeline:** Select archetype → Run shape function → Expand lifeform seeds →
+Fill to 8-12 → Generate flaw life → Generate extinctions → Name species.
+
+**6 life-origin archetypes** in `biogonyArchetypes.js`, keyed by name:
+- **Seeding** — a god scatters life deliberately (walks from creator domains)
+- **Spawning** — life emerges uninstructed from terrain or materials
+- **Shedding** — creatures formed from body parts of dead/transformed gods
+- **Echoing** — life mimics the creation act (fractal repetition)
+- **Parasiting** — life feeds on the world's wound (flaw-driven, all are flaw life)
+- **Adapting** — life shaped by terrain constraints (1 lifeform per terrain type)
+
+**Archetype selection:** Weighted by cosmogony recipe and world state. Dead gods
+favor shedding (+4), deliberate myths favor seeding (+3), organic myths favor
+spawning (+3), cyclic/dream myths favor echoing (+3).
+
+**Lifeform structure:** name, concepts (2-4), terrainAffinity (1-2 terrain type names),
+behavior (one of 10 types), origin (how it arose).
+
+**10 behavior types:** predator, grazer, burrower, drifter, rooted, parasite,
+sentinel, swarm, mimic, decay. Resolved from concept graph edges in priority order.
+
+**Flaw life:** 1-3 creatures linked to `myth.flaw.concepts`. Always behavior
+`parasite` or `decay`. Appear in both `flawLife[]` and `lifeforms[]`.
+
+**Extinctions:** 1-3 concepts from `myth.cost` that are fauna/flora/body.
+Must not overlap living lifeforms.
+
+**Species naming:** Reuses `nameRegion()` — concept clusters resolved to phoneme
+palettes produce 2-3 syllable species names.
+
+### Mythic History System
+`generateHistory(graph, world, rng)` mutates `world.agents` directly and pushes
+events/regions into the world. Uses a separate RNG stream (`seed + '-history'`).
+
+**Pipeline:** Pick archetype sequence → Event loop (5–8 events) → Name regions →
+Name spawned agents.
 
 **MythicEvent structure:** Four beats: situation → action → consequence → legacy.
 Each beat has `roles: BeatRoles` and `concepts: string[]`, paralleling the creation
@@ -328,16 +408,96 @@ all previous events. The concept pool grows event by event, creating causal chai
 
 **Agent mutation:** Events change agent states (killed, exiled, transformed, etc.),
 change types (god→demon), add relationships, and spawn new agents. Changes are
-tracked per-event in `agentChanges` for display. Agents are deep-cloned from the
-original pantheon; originals are never mutated.
+tracked per-event in `agentChanges` (keyed by agent `id`) for display. Mutations
+happen directly on `world.agents` — no cloning. Spawned agents are added via
+`addAgent(world, agent, 'history')` and join the canonical roster.
 
 **Region creation:** Each event creates 1–2 regions from consequence concepts,
 expanded 1-hop via evokes/rhymes to 6–10 concept clusters. Corruption and Return
 also tag existing regions. Target: 6–12 regions after 5–8 events.
 
-**Event prose:** `renderEventProse(event, graph, rng)` in `historyProse.js`. Template
-pools for each beat (situation/action/consequence/legacy) with archetype-keyed action
-sub-pools. Sensory elaborators add graph-driven detail. Same pattern as `prose.js`.
+### Anthropogony System
+`generateAnthropogony(graph, world, rng)` sets `world.anthropogony` with peoples,
+common memory, and disputes. Uses a separate RNG stream (`seed + '-anthropogony'`).
+
+**Pipeline:** Select archetype → Run shape function → Expand people seeds →
+Fill to 3 minimum → Cap at 6 → Derive common memory → Derive disputes.
+
+**6 people-origin archetypes** in `anthropogonyArchetypes.js`, keyed by name:
+- **Fashioned** — a god deliberately made peoples from materials
+- **Awakened** — existing lifeforms gained sentience
+- **Fallen** — diminished gods' descendants, remembering fragments of divinity
+- **Exiled** — arrived from elsewhere, carrying foreign memory
+- **Split** — one original people divided by the flaw or historical event
+- **Unintended** — peoples arose as a side effect, not a goal
+
+**Archetype selection:** Weighted by cosmogony recipe, agent states, biogony
+recipe, and history events. Dead gods favor fallen (+4), deliberate myths favor
+fashioned (+3), sundering events favor split (+4).
+
+**People structure:** name, concepts (4-6), creatorAgent, patronAgent, purpose
+(force concept), gift (item concept), flaw (from myth flaw), terrainAffinity
+(1-2 terrain types), remembers (myth act/cost echoes), fears (myth flaw echoes),
+physicalTraits (texture/shape/color from graph edges), origin.
+
+**Common memory:** Myth concepts shared across 2+ peoples' concept clusters.
+
+**Disputes:** Flaw concepts that divide peoples — in one people's fears but
+another's remembers.
+
+### Chorogony System
+`generateChorogony(graph, world, rng)` sets `world.chorogony` with enriched regions.
+Uses a separate RNG stream (`seed + '-chorogony'`). Runs **last** in the pipeline,
+after all other layers.
+
+**Pipeline:** Copy base regions from history → Absorb geogony enrichments (terrain,
+landmarks, climate) → Place peoples by concept+terrain scoring → Place lifeforms
+by concept+terrain scoring → Derive resources (materials/items from graph walks) →
+Derive dangers (flaw concepts + event consequences + flaw lifeforms) → Derive mood
+(evokes edges from dominant concepts).
+
+**ChorogonyRegion structure:** id, name, concepts, taggedBy, primaryEvent,
+terrainTypes, peoples, resources, dangers, mood, landmarks, lifeforms, climate.
+
+**Placement algorithm:** Each people/lifeform scored against every region via
+conceptOverlap + terrain affinity bonus (+2 per match). Assigned to top 1-2
+regions. Entities can appear in multiple regions.
+
+**World structure:** `world.chorogony = { regions: ChorogonyRegion[] }`.
+
+### Hierogony System
+`generateHierogony(graph, world, rng)` sets `world.hierogony` with religions,
+heresies, sacred sites, and practices. Uses a separate RNG stream
+(`seed + '-hierogony'`). Runs after chorogony.
+
+**Pipeline:** Select archetype → Run shape function → Expand religion seeds →
+Assign peoples to religions (concept overlap + patron scoring) → Consolidate →
+Generate heresies (from disputes + flaw reinterpretation) → Place sacred sites
+(religion concepts vs landmark concepts) → Derive practices (rites/taboos/observances
+from myth beats) → Apply mutations.
+
+**6 belief-origin archetypes** in `hierogonyArchetypes.js`, keyed by name:
+- **Revelation** — a god spoke directly; literal myth interpretation
+- **Tradition** — ancestral memory handed down; continuity focus
+- **Mystery** — centered on the unknowable flaw; absent gods
+- **Gratitude** — worship of what provides; patron gods and gifts
+- **Fear** — driven by threats; appeasement of demons/flaw creatures
+- **Schism** — born from rejecting another interpretation
+
+**Religion structure:** id, name, peoples (name list), worshippedAgents (agent id list),
+taboos, rites, concepts, originEvent.
+
+**Heresy structure:** id, name, religionId, denies (concepts), claims (concepts),
+origin, concepts.
+
+**Sacred site structure:** id, name, regionId, landmarkName, religionId, concepts.
+
+**Practice structure:** id, name, religionId, type (rite/taboo/observance), concepts.
+
+**Mutations:** peoples get `religion` field (string id), landmarks get `sacredTo`
+(string[] of religion ids), agents get `worshippedBy` (string[] of religion ids).
+
+**World structure:** `world.hierogony = { recipe, religions, heresies, sacredSites, practices }`.
 
 ---
 
