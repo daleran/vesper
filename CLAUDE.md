@@ -122,7 +122,15 @@ src/
   conceptResolvers.js — Shared concept resolution: expandConceptCluster, resolveShape, resolveSubstance, resolvePhysicalTraits.
   query.js       — Chainable concept graph query builder. query(graph).where().or().get().
   queryHelpers.js — Reusable semantic concept finders: findTool, findVoid, findArena, etc.
-  ui.js          — buildControls(), displayMyth(container, world) — structured data viewer.
+  ui/
+    index.js       — Barrel export: buildControls, showEmptyState, displayMyth, displayMythBatch, displayLegends, displayGame.
+    components.js  — Shared DOM helpers: createMetaRow, renderBeat, createJsonToggle, createLayerPanel, renderTagRow, createBadge, entityLink.
+    shell.js       — Controls header (seed input, generate, batch buttons), showEmptyState.
+    legendsDetail.js — All 14 layer render functions, LAYER_RENDERERS registry, renderLayerPanels, displayMyth, displayMythBatch.
+    legendsNav.js  — Navigation tree builder: buildNavTree(world), navigateTo(navTree, entityType, entityId).
+    legends.js     — Legends Mode entry: two-pane layout, entity registry, concept search, entity link delegation.
+    game.js        — Game Mode entry: scene navigation, inventory, journal, encounters, dialogue.
+    gameScene.js   — Scene graph builder: buildSceneGraph(world), renderScene(scene, world, graph, visited).
   renderers/
     sensory.js    — Shared sensory utilities: buildSensoryProfile, sensoryPhrase, moodPhrase.
     landmarks.js  — renderLandmarks(graph, world, rng) → Map<id, prose>. 1-3 paragraph per landmark.

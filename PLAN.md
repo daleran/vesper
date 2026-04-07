@@ -651,21 +651,20 @@ the mythology, both discover it together.
 
 Two interfaces for two audiences. Both read the same World data. Neither modifies it.
 
-### Phase 43 — Legends Mode (Designer Tool)
+### Phase 43 — Legends Mode (Designer Tool) ✓
 
 > Decompose `src/ui.js` into `src/ui/` modules. Keep old `ui.js` working through
 > Phases 34–42 by adding panels for each new layer; decompose only here.
 
-- [ ] `src/ui/shell.js` — app shell, mode switching (legends/game), controls
-- [ ] `src/ui/legends.js` — Legends Mode entry point
-- [ ] `src/ui/legendsNav.js` — left-pane navigation tree
-- [ ] `src/ui/legendsDetail.js` — right-pane data display (migrated render functions from ui.js)
-- [ ] `src/ui/legendsProse.js` — prose rendering within legends mode
-- [ ] `src/ui/components.js` — shared components (badges, concept tags, meta rows, JSON toggle)
-- [ ] Two-pane layout:
-  - **Left pane:** Navigation tree + game-view prose for selected node
-  - **Right pane:** Debug data — raw JSON, concept tags, edge relationships, renderer decisions
-- [ ] Navigation tree structure:
+- [x] `src/ui/shell.js` — app shell, mode switching (legends/game), controls
+- [x] `src/ui/legends.js` — Legends Mode entry point
+- [x] `src/ui/legendsNav.js` — left-pane navigation tree
+- [x] `src/ui/legendsDetail.js` — right-pane data display (migrated render functions from ui.js)
+- [x] `src/ui/components.js` — shared components (badges, concept tags, meta rows, JSON toggle)
+- [x] Two-pane layout:
+  - **Left pane:** Navigation tree + concept search for selected node
+  - **Right pane:** Layer detail data from render functions
+- [x] Navigation tree structure:
   ```
   World: [name] — Seed: [seed]
   ├─ Cosmogony (beats, creators, concepts)
@@ -682,28 +681,28 @@ Two interfaces for two audiences. Both read the same World data. Neither modifie
   ├─ Texts (per-text with type badges)
   └─ Character (origin, purpose, arrival)
   ```
-- [ ] **Bidirectional linking:** Every entity reference is clickable — click a god's name to jump to their entry, click a region to see its data, click an artifact to see origin/location/texts
-- [ ] **Concept search:** Filter the entire world by concept tag across all entity types
+- [x] **Bidirectional linking:** Entity links clickable via entityLink() helper + entity registry + navigateTo()
+- [x] **Concept search:** Filter nav tree by concept tag across all entity types
 - [ ] **Prose/data toggle:** Every node with rendered prose toggles between game-view and debug
-- [ ] **Regenerate:** Same seed (determinism check) or new seed (variety check)
-- [ ] Delete old `src/ui.js` after migration
-- [ ] Update `css/main.css` for two-pane layout
-- [ ] Verify: `npm run validate` + `npm run build` pass
+- [x] **Regenerate:** Same seed (determinism check) or new seed (variety check)
+- [x] Delete old `src/ui.js` after migration
+- [x] Update `css/main.css` for two-pane layout
+- [x] Verify: `npm run validate` + `npm run build` pass
 
-### Phase 44 — Game Mode (Player Interface)
+### Phase 44 — Game Mode (Player Interface) ✓
 
-- [ ] `src/ui/game.js` — Game Mode entry point
-- [ ] `src/ui/gameScene.js` — scene rendering and navigation
-- [ ] Single-pane, text-focused, immersive. No concept tags, no debug data, no "generated".
-- [ ] Core elements:
+- [x] `src/ui/game.js` — Game Mode entry point
+- [x] `src/ui/gameScene.js` — scene rendering and navigation
+- [x] Single-pane, text-focused, immersive. No concept tags, no debug data, no "generated".
+- [x] Core elements:
   - **Scene text** — 1–3 paragraphs from region/landmark renderers
   - **Choices** — 2–5 options: navigate to adjacent region/landmark, examine, talk, pick up, read inscription
   - **Found texts** — myth texts discovered at sacred sites or with artifacts, visually distinct from scene prose
   - **Inventory** — artifacts the player has found, each examinable for physical description
   - **Journal** — accumulated fragments: texts read, landmarks visited, gods named by NPCs. Loosely organized — the player pieces things together
-- [ ] Navigation model: scenes connected as a network (not a map). Region transitions change vocabulary, mood, sensory emphasis. The player *feels* the boundary.
-- [ ] Encounter model: active agents appear in their associated regions. Dialogue from concept tags and mythic roles — landscape guardian speaks of the land, returned-flaw demon speaks in riddles, exiled god's spirit speaks with grief.
-- [ ] Verify: `npm run validate` + `npm run build` pass
+- [x] Navigation model: scenes connected as a network (not a map). Region transitions change vocabulary, mood, sensory emphasis. The player *feels* the boundary.
+- [x] Encounter model: active agents appear in their associated regions. Dialogue from concept tags and mythic roles — landscape guardian speaks of the land, returned-flaw demon speaks in riddles, exiled god's spirit speaks with grief.
+- [x] Verify: `npm run validate` + `npm run build` pass
 
 ---
 

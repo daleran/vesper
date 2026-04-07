@@ -14,6 +14,7 @@ export default [
         navigator: 'readonly',
         setTimeout: 'readonly',
         URLSearchParams: 'readonly',
+        CustomEvent: 'readonly',
       },
     },
     rules: {

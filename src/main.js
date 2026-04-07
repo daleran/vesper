@@ -15,7 +15,7 @@ import { renderLandmarks } from './renderers/landmarks.js'
 import { renderRegions } from './renderers/regions.js'
 import { generateMythTexts } from './renderers/mythTexts.js'
 import { createWorld } from './world.js'
-import { buildControls, showEmptyState, displayMyth, displayMythBatch } from './ui.js'
+import { buildControls, showEmptyState, displayMyth, displayMythBatch, displayLegends, displayGame } from './ui/index.js'
 import { buildExplorer } from './explorer.js'
 import { mulberry32, hashSeed, pick } from './utils.js'
 import { query } from './query.js'
@@ -33,27 +33,49 @@ const output   = /** @type {HTMLElement} */ (document.getElementById('output'))
 const explorer = /** @type {HTMLElement} */ (document.getElementById('explorer'))
 
 // ── Tab switching ──
+
+/** @type {import('./world.js').World|null} */
+let currentWorld = null
+
 /**
- * @param {'generate'|'concepts'} tab
+ * @param {'generate'|'legends'|'game'|'concepts'} tab
  */
 function switchTab(tab) {
   controls.hidden = tab !== 'generate'
-  output.hidden = tab !== 'generate'
+  output.hidden = false
   explorer.hidden = tab !== 'concepts'
+  if (tab === 'concepts') output.hidden = true
   for (const btn of tabsEl.querySelectorAll('.tab-btn')) {
     btn.classList.toggle('active', /** @type {HTMLElement} */ (btn).dataset['tab'] === tab)
   }
   if (tab === 'concepts') {
     buildExplorer(explorer, TRIPLES)
+  } else if (tab === 'legends') {
+    if (currentWorld) {
+      displayLegends(output, currentWorld)
+    } else {
+      showEmptyState(output)
+    }
+  } else if (tab === 'game') {
+    if (currentWorld) {
+      displayGame(output, currentWorld)
+    } else {
+      showEmptyState(output)
+    }
   }
 }
 
-for (const [id, label] of /** @type {[string, string][]} */ ([['generate', 'generate'], ['concepts', 'concepts']])) {
+for (const [id, label] of /** @type {[string, string][]} */ ([
+  ['generate', 'generate'],
+  ['legends', 'legends'],
+  ['game', 'game'],
+  ['concepts', 'concepts'],
+])) {
   const btn = document.createElement('button')
   btn.className = 'tab-btn'
   btn.dataset['tab'] = id
   btn.textContent = label
-  btn.addEventListener('click', () => switchTab(/** @type {'generate'|'concepts'} */ (id)))
+  btn.addEventListener('click', () => switchTab(/** @type {'generate'|'legends'|'game'|'concepts'} */ (id)))
   tabsEl.appendChild(btn)
 }
 
@@ -88,6 +110,7 @@ function buildWorld(seed, forceRecipe) {
 
 const ui = buildControls(controls, ({ seed }) => {
   const world = buildWorld(seed)
+  currentWorld = world
   window.location.hash = `seed=${encodeURIComponent(seed)}`
   displayMyth(output, world)
 }, (count) => {
@@ -120,6 +143,7 @@ const hashSeedValue = hashParams.get('seed')
 if (hashSeedValue) {
   ui.setSeed(hashSeedValue)
   const world = buildWorld(hashSeedValue)
+  currentWorld = world
   displayMyth(output, world)
 } else {
   showEmptyState(output)

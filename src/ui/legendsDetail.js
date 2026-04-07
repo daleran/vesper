@@ -1,219 +1,21 @@
 /**
- * @import { CreationMyth } from './recipes/index.js'
- * @import { Agent } from './pantheon.js'
- * @import { World, GeogonyData, BiogonyData, AnthropogonyData, ChorogonyData } from './world.js'
- * @import { HierogonyData } from './hierogony.js'
- * @import { PolitogonyData } from './politogony.js'
- * @import { PresentData } from './present.js'
- * @import { Artifact } from './artifacts.js'
- * @import { PlayerCharacter } from './character.js'
- * @import { MythText } from './renderers/mythTexts.js'
- */
-import { findAgent, findPolity, findReligion, findRegion, findEntity } from './world.js'
-
-/**
- * @typedef {{ seed: string }} MythParams
- * @typedef {(params: MythParams) => void} GenerateCallback
- * @typedef {(count: number) => void} BatchCallback
+ * Layer render functions and display logic for the Legends Mode detail pane.
+ * Migrated from the monolithic src/ui.js.
  */
 
 /**
- * Generate a random seed string.
- * @returns {string}
+ * @import { CreationMyth } from '../recipes/index.js'
+ * @import { Agent } from '../pantheon.js'
+ * @import { World, GeogonyData, BiogonyData, AnthropogonyData, ChorogonyData } from '../world.js'
+ * @import { HierogonyData } from '../hierogony.js'
+ * @import { PolitogonyData } from '../politogony.js'
+ * @import { PresentData } from '../present.js'
+ * @import { Artifact } from '../artifacts.js'
+ * @import { PlayerCharacter } from '../character.js'
+ * @import { MythText } from '../renderers/mythTexts.js'
  */
-function randomSeedString() {
-  return Math.random().toString(36).slice(2, 10)
-}
-
-/**
- * Build the controls header and bind generation to the callback.
- * @param {HTMLElement} container
- * @param {GenerateCallback} onGenerate
- * @param {BatchCallback} [onBatch]
- * @returns {{ getSeed: () => string, setSeed: (v: string) => void }}
- */
-export function buildControls(container, onGenerate, onBatch) {
-  const title = document.createElement('span')
-  title.className = 'controls-title'
-  title.textContent = 'First Light'
-
-  const seedGroup = document.createElement('div')
-  seedGroup.className = 'control-group'
-
-  const seedLabel = document.createElement('label')
-  seedLabel.textContent = 'seed'
-
-  const seedInput = document.createElement('input')
-  seedInput.type = 'text'
-  seedInput.value = randomSeedString()
-  seedInput.placeholder = 'enter a seed'
-  seedInput.setAttribute('aria-label', 'seed')
-
-  const randomBtn = document.createElement('button')
-  randomBtn.className = 'small'
-  randomBtn.textContent = 'random'
-  randomBtn.addEventListener('click', () => {
-    seedInput.value = randomSeedString()
-  })
-
-  seedGroup.append(seedLabel, seedInput, randomBtn)
-
-  const generateBtn = document.createElement('button')
-  generateBtn.className = 'primary'
-  generateBtn.textContent = 'generate'
-
-  function generate() {
-    onGenerate({ seed: seedInput.value || 'default' })
-  }
-
-  generateBtn.addEventListener('click', generate)
-  seedInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter') generate()
-  })
-
-  const batchBtn = document.createElement('button')
-  batchBtn.textContent = 'batch 20'
-  batchBtn.addEventListener('click', () => {
-    if (onBatch) onBatch(20)
-  })
-
-  container.append(title, seedGroup, generateBtn, batchBtn)
-
-  return {
-    getSeed: () => seedInput.value,
-    setSeed: (/** @type {string} */ v) => { seedInput.value = v },
-  }
-}
-
-/**
- * Clear the output and show an empty state prompt.
- * @param {HTMLElement} container
- */
-export function showEmptyState(container) {
-  container.innerHTML = ''
-  const empty = document.createElement('p')
-  empty.className = 'empty-state'
-  empty.textContent = 'Enter a seed and click generate.'
-  container.appendChild(empty)
-}
-
-// ── Shared helpers ──
-
-/**
- * Create a labeled meta row (label: value).
- * @param {string} label
- * @param {string} value
- * @returns {HTMLElement}
- */
-function createMetaRow(label, value) {
-  const row = document.createElement('div')
-  row.className = 'meta-row'
-  const lbl = document.createElement('span')
-  lbl.className = 'meta-label'
-  lbl.textContent = label
-  const val = document.createElement('span')
-  val.className = 'meta-value'
-  val.textContent = value
-  row.append(lbl, val)
-  return row
-}
-
-/**
- * Render a beat's roles as a definition list + concepts as badge row.
- * @param {string} beatName
- * @param {{ roles: Record<string, string>, concepts: string[] }} beat
- * @returns {HTMLElement}
- */
-function renderBeat(beatName, beat) {
-  const section = document.createElement('div')
-  section.className = 'beat-section'
-
-  const heading = document.createElement('h4')
-  heading.className = 'beat-heading'
-  heading.textContent = beatName
-
-  const dl = document.createElement('dl')
-  dl.className = 'beat-roles'
-  for (const [key, val] of Object.entries(beat.roles)) {
-    const dt = document.createElement('dt')
-    dt.className = 'beat-role-key'
-    dt.textContent = key
-
-    const dd = document.createElement('dd')
-    dd.className = 'beat-role-value'
-    dd.textContent = val
-
-    dl.append(dt, dd)
-  }
-
-  section.append(heading, dl)
-
-  if (beat.concepts.length > 0) {
-    const row = document.createElement('div')
-    row.className = 'concept-row'
-    for (const c of beat.concepts) {
-      const tag = document.createElement('span')
-      tag.className = 'concept-tag'
-      tag.textContent = c
-      row.appendChild(tag)
-    }
-    section.appendChild(row)
-  }
-
-  return section
-}
-
-/**
- * Create a collapsible JSON toggle for a data object.
- * @param {object} data
- * @returns {HTMLElement}
- */
-function createJsonToggle(data) {
-  const wrapper = document.createElement('div')
-  wrapper.className = 'json-section'
-
-  const toggle = document.createElement('button')
-  toggle.className = 'json-toggle'
-  toggle.textContent = '{ } json'
-
-  const body = document.createElement('pre')
-  body.className = 'json-body'
-
-  let loaded = false
-  toggle.addEventListener('click', () => {
-    if (!loaded) {
-      body.textContent = JSON.stringify(data, null, 2)
-      loaded = true
-    }
-    const open = body.classList.toggle('open')
-    toggle.classList.toggle('open', open)
-  })
-
-  wrapper.append(toggle, body)
-  return wrapper
-}
-
-/**
- * Create a layer panel (collapsible details element).
- * @param {string} title
- * @param {boolean} [open]
- * @returns {{ panel: HTMLDetailsElement, body: HTMLDivElement }}
- */
-function createLayerPanel(title, open = true) {
-  const panel = document.createElement('details')
-  panel.className = 'layer-panel'
-  panel.open = open
-
-  const summary = document.createElement('summary')
-  summary.className = 'layer-heading'
-  summary.textContent = title
-
-  const body = document.createElement('div')
-  body.className = 'layer-body'
-
-  panel.append(summary, body)
-  return { panel, body }
-}
+import { findAgent, findPolity, findReligion, findRegion, findEntity } from '../world.js'
+import { createMetaRow, renderBeat, createJsonToggle, createLayerPanel, renderTagRow } from './components.js'
 
 // ── Layer 0: Cosmogony ──
 
@@ -274,35 +76,12 @@ function renderCosmogony(myth) {
 // ── Layer 1: Theogony ──
 
 /**
- * Render a pantheon as a DOM element.
- * @param {World} world
- * @returns {HTMLElement}
- */
-function renderPantheon(world) {
-  const container = document.createElement('div')
-  const pantheonAgents = world.agents.filter(a => a.origin === 'pantheon')
-
-  for (const agent of pantheonAgents) {
-    container.appendChild(renderAgent(agent, world))
-  }
-
-  if (world.tensions.length > 0) {
-    const tensionEl = document.createElement('p')
-    tensionEl.className = 'pantheon-tensions'
-    tensionEl.textContent = `tensions: ${world.tensions.map(t => t.replace(':', ' / ')).join(', ')}`
-    container.appendChild(tensionEl)
-  }
-
-  return container
-}
-
-/**
  * Render a single agent as a compact DOM element.
  * @param {Agent} agent
  * @param {World} world
  * @returns {HTMLElement}
  */
-function renderAgent(agent, world) {
+export function renderAgent(agent, world) {
   const el = document.createElement('div')
   el.className = 'agent-card'
 
@@ -340,6 +119,29 @@ function renderAgent(agent, world) {
 
   el.appendChild(details)
   return el
+}
+
+/**
+ * Render a pantheon as a DOM element.
+ * @param {World} world
+ * @returns {HTMLElement}
+ */
+function renderPantheon(world) {
+  const container = document.createElement('div')
+  const pantheonAgents = world.agents.filter(a => a.origin === 'pantheon')
+
+  for (const agent of pantheonAgents) {
+    container.appendChild(renderAgent(agent, world))
+  }
+
+  if (world.tensions.length > 0) {
+    const tensionEl = document.createElement('p')
+    tensionEl.className = 'pantheon-tensions'
+    tensionEl.textContent = `tensions: ${world.tensions.map(t => t.replace(':', ' / ')).join(', ')}`
+    container.appendChild(tensionEl)
+  }
+
+  return container
 }
 
 // ── Layer 2: Geogony ──
@@ -712,20 +514,6 @@ function renderAnthropogony(anthropogony, world) {
 // ── Layer 5: Chorogony ──
 
 /**
- * Render a labeled tag row (label + concept badges).
- * @param {string} label
- * @param {string[]} items
- * @returns {HTMLElement|null}
- */
-function renderTagRow(label, items) {
-  if (items.length === 0) return null
-  const row = document.createElement('div')
-  row.className = 'agent-details'
-  row.textContent = `${label}: ${items.join(', ')}`
-  return row
-}
-
-/**
  * Render chorogony data as a DOM element.
  * @param {ChorogonyData} chorogony
  * @param {World} _world
@@ -778,6 +566,8 @@ function renderChorogony(chorogony, _world) {
 
   return container
 }
+
+// ── Layer 6: Hierogony ──
 
 /**
  * Render hierogony data as a DOM element.
@@ -943,6 +733,8 @@ function renderHierogony(hierogony, world) {
 
   return container
 }
+
+// ── Layer 7: Politogony ──
 
 /**
  * Render politogony data as a DOM element.
@@ -1188,6 +980,8 @@ function renderPolitogony(politogony, world) {
 
   return container
 }
+
+// ── Layer 8: The Present ──
 
 /**
  * Render present-layer data as a DOM element.
@@ -1463,7 +1257,7 @@ function renderPresent(present, world) {
   return container
 }
 
-// ── Layer registry ──
+// ── Artifacts ──
 
 /**
  * Render artifacts as a DOM element.
@@ -1532,6 +1326,8 @@ function renderArtifacts(artifacts, world) {
 
   return container
 }
+
+// ── Character ──
 
 /**
  * Render the character panel.
@@ -1650,6 +1446,8 @@ function renderCharacter(character, world) {
   return container
 }
 
+// ── Landmark Descriptions ──
+
 /**
  * Render landmark prose descriptions as cards.
  * @param {World} world
@@ -1694,6 +1492,8 @@ function renderLandmarkDescriptions(world) {
 
   return container
 }
+
+// ── Myth Texts ──
 
 /**
  * Render myth texts as cards.
@@ -1752,6 +1552,8 @@ function renderMythTexts(texts, world) {
   return container
 }
 
+// ── Region Descriptions ──
+
 /**
  * Render region prose descriptions as cards.
  * @param {World} world
@@ -1797,6 +1599,8 @@ function renderRegionDescriptions(world) {
   return container
 }
 
+// ── Layer Registry ──
+
 /**
  * @typedef {{
  *   title: string,
@@ -1807,7 +1611,7 @@ function renderRegionDescriptions(world) {
  */
 
 /** @type {LayerDef[]} */
-const LAYER_RENDERERS = [
+export const LAYER_RENDERERS = [
   {
     title: 'Layer 0 \u2014 Cosmogony',
     show: w => w.myth !== null,
@@ -1900,7 +1704,7 @@ const LAYER_RENDERERS = [
  * @param {boolean} [defaultOpen=true]
  * @returns {DocumentFragment}
  */
-function renderLayerPanels(world, defaultOpen = true) {
+export function renderLayerPanels(world, defaultOpen = true) {
   const fragment = document.createDocumentFragment()
   for (const layer of LAYER_RENDERERS) {
     if (!layer.show(world)) continue
