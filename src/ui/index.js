@@ -3,6 +3,5 @@
  */
 
 export { buildControls, showEmptyState } from './shell.js'
-export { displayMyth, displayMythBatch } from './legendsDetail.js'
-export { displayLegends } from './legends.js'
+export { displayWorld, displayMythBatch } from './worldView.js'
 export { displayGame } from './game.js'
