@@ -14,6 +14,7 @@ import { query } from './query.js'
 import { buildAgent } from './pantheon.js'
 import { nameAgents, nameRegion } from './naming.js'
 import { addAgent } from './world.js'
+import { assignPronouns } from './pronouns.js'
 import { ARCHETYPES, ARCHETYPE_NAMES } from './historyArchetypes.js'
 
 // ── Typedefs ──
@@ -153,12 +154,15 @@ export function generateHistory(graph, world, rng) {
   /** @type {Set<string>} */
   const usedRegionNames = new Set()
   for (const region of world.regions) {
-    region.name = nameRegion(graph, region.concepts, rng, usedRegionNames)
+    region.name = nameRegion(graph, region.concepts, rng, { usedNames: usedRegionNames, entityType: 'place', morphemes: world.morphemes })
   }
 
-  // Name agents spawned during history
+  // Name agents spawned during history and assign pronouns
   if (spawnedDuringHistory.length > 0) {
     nameAgents(graph, myth, spawnedDuringHistory, rng)
+    for (const agent of spawnedDuringHistory) {
+      agent.pronouns = assignPronouns(agent, rng)
+    }
   }
 }
 

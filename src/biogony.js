@@ -216,7 +216,7 @@ export function generateBiogony(graph, world, rng) {
     const behavior = resolveBehavior(graph, seed.baseConcept, isFlawLinked)
 
     // Generate name
-    const name = nameRegion(graph, conceptCluster, rng, usedNames, [1, 2])
+    const name = nameRegion(graph, conceptCluster, rng, { usedNames, syllableRange: [1, 2], entityType: 'creature', morphemes: world.morphemes })
 
     lifeforms.push({
       id: '',
@@ -243,7 +243,7 @@ export function generateBiogony(graph, world, rng) {
       const conceptCluster = expandConceptCluster(graph, rng, concept)
       const terrainAffinity = resolveTerrainAffinity(graph, conceptCluster, terrainTypes)
       const behavior = resolveBehavior(graph, concept, false)
-      const name = nameRegion(graph, conceptCluster, rng, usedNames, [1, 2])
+      const name = nameRegion(graph, conceptCluster, rng, { usedNames, syllableRange: [1, 2], entityType: 'creature', morphemes: world.morphemes })
 
       lifeforms.push({
         id: '',

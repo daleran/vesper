@@ -122,7 +122,7 @@ const INTERPRETATION_POOL = ['glorifies', 'denies', 'mourns', 'fears', 'claims-c
  * @param {World} world
  * @returns {string}
  */
-function selectArchetype(rng, myth, world) {
+export function selectArchetype(rng, myth, world) {
   // [theocracy, conquest, confederation, dynasty, merchant, remnant]
   const weights = [1, 1, 1, 1, 1, 1]
 
@@ -229,7 +229,7 @@ export function generatePolitogony(graph, world, rng) {
       peopleId ? peoples.find(p => p.name === peopleId)?.patronAgent ?? null : null
     )
 
-    const name = nameRegion(graph, conceptCluster, rng, usedNames)
+    const name = nameRegion(graph, conceptCluster, rng, { usedNames, entityType: 'polity', morphemes: world.morphemes })
 
     // Resolve state
     /** @type {'rising'|'stable'|'declining'|'fallen'} */
@@ -398,7 +398,7 @@ export function generatePolitogony(graph, world, rng) {
       for (const c of polity.concepts.slice(0, 2)) remains.add(c)
     }
 
-    const ruinName = nameRegion(graph, polity.concepts.slice(0, 3), rng, usedNames)
+    const ruinName = nameRegion(graph, polity.concepts.slice(0, 3), rng, { usedNames, entityType: 'place', morphemes: world.morphemes })
 
     ruins.push({
       id: `ruin-${ruinCounter++}`,
@@ -480,7 +480,7 @@ export function generatePolitogony(graph, world, rng) {
       /** @type {'cold'|'simmering'|'open'} */
       const intensity = score >= 8 ? 'open' : score >= 5 ? 'simmering' : 'cold'
 
-      const conflictName = nameRegion(graph, conflictConcepts, rng, usedNames)
+      const conflictName = nameRegion(graph, conflictConcepts, rng, { usedNames, entityType: 'event', morphemes: world.morphemes })
 
       conflicts.push({
         id: `conflict-${conflictCounter++}`,
@@ -569,7 +569,7 @@ export function generatePolitogony(graph, world, rng) {
         ...b.concepts.slice(0, 2),
       ].slice(0, 4)
 
-      const allianceName = nameRegion(graph, allianceConcepts, rng, usedNames)
+      const allianceName = nameRegion(graph, allianceConcepts, rng, { usedNames, entityType: 'polity', morphemes: world.morphemes })
 
       alliances.push({
         id: `alliance-${allianceCounter++}`,

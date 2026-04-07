@@ -206,7 +206,7 @@ function buildCosmogonyArtifact(graph, rng, world, myth, regions, allLandmarks, 
   const landmarkName = region ? findBestLandmark(graph, concepts, region.landmarks, allLandmarks) : null
   const status = resolveStatus(rng, regionId, landmarkName, world, condition, false)
 
-  const name = nameRegion(graph, concepts, rng, usedNames)
+  const name = nameRegion(graph, concepts, rng, { usedNames, entityType: 'artifact', morphemes: world.morphemes })
 
   return {
     id: `artifact-${index}`,
@@ -262,7 +262,7 @@ function buildEventArtifact(graph, rng, world, event, eventIndex, regions, allLa
   const landmarkName = region ? findBestLandmark(graph, concepts, region.landmarks, allLandmarks) : null
   const status = resolveStatus(rng, regionId, landmarkName, world, condition, false)
 
-  const name = nameRegion(graph, concepts, rng, usedNames)
+  const name = nameRegion(graph, concepts, rng, { usedNames, entityType: 'artifact', morphemes: world.morphemes })
 
   return {
     id: `artifact-${index}`,
@@ -326,7 +326,7 @@ function buildGodArtifact(graph, rng, world, agent, regions, allLandmarks, mater
   const landmarkName = region ? findBestLandmark(graph, concepts, region.landmarks, allLandmarks) : null
   const status = resolveStatus(rng, regionId, landmarkName, world, condition, isActiveGod)
 
-  const name = nameRegion(graph, concepts, rng, usedNames)
+  const name = nameRegion(graph, concepts, rng, { usedNames, entityType: 'artifact', morphemes: world.morphemes })
 
   return {
     id: `artifact-${index}`,
@@ -376,7 +376,7 @@ function buildRegionalArtifact(graph, rng, world, region, allLandmarks, material
   const landmarkName = findBestLandmark(graph, concepts, region.landmarks, allLandmarks)
   const status = resolveStatus(rng, region.id, landmarkName, world, condition, false)
 
-  const name = nameRegion(graph, concepts, rng, usedNames)
+  const name = nameRegion(graph, concepts, rng, { usedNames, entityType: 'artifact', morphemes: world.morphemes })
 
   return {
     id: `artifact-${index}`,

@@ -286,11 +286,6 @@ function awakening(ctx) {
 
 // ── Registry ──
 
-/** @type {string[]} */
-export const PRESENT_NAMES = [
-  'plague', 'schism', 'succession', 'invasion', 'depletion', 'awakening',
-]
-
 /** @type {Record<string, (ctx: PresentContext) => PresentShape>} */
 export const PRESENT_SHAPES = {
   plague,
@@ -300,3 +295,6 @@ export const PRESENT_SHAPES = {
   depletion,
   awakening,
 }
+
+/** @type {string[]} */
+export const PRESENT_NAMES = Object.keys(PRESENT_SHAPES)

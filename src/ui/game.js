@@ -5,6 +5,7 @@
 
 /**
  * @import { World } from '../world.js'
+ * @import { ConceptGraph } from '../concepts.js'
  */
 import { findAgent } from '../world.js'
 import { buildSceneGraph, renderScene } from './gameScene.js'
@@ -23,11 +24,12 @@ import { buildSceneGraph, renderScene } from './gameScene.js'
  * Display Game Mode — immersive text interface with scene navigation.
  * @param {HTMLElement} container
  * @param {World} world
+ * @param {ConceptGraph} graph
  */
-export function displayGame(container, world) {
+export function displayGame(container, world, graph) {
   container.innerHTML = ''
 
-  const sceneGraph = buildSceneGraph(world)
+  const sceneGraph = buildSceneGraph(world, graph)
 
   // Determine start scene from character arrival
   const startId = world.character?.arrival?.regionId ?? (world.chorogony?.regions?.[0]?.id ?? '')

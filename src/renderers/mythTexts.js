@@ -11,10 +11,14 @@
  * @import { Agent } from '../pantheon.js'
  * @import { MythicEvent } from '../history.js'
  * @import { Artifact } from '../artifacts.js'
+ * @import { GlossState } from './gloss.js'
  */
 import { pick, clamp, conceptOverlap } from '../utils.js'
 import { nameRegion } from '../naming.js'
 import { expandConceptCluster } from '../conceptResolvers.js'
+import { glossConcept, createGlossState } from './gloss.js'
+import { getSensoryEdges } from './sensory.js'
+import { referAgent, getPronouns } from '../pronouns.js'
 
 // ── Typedef ──
 
@@ -41,55 +45,16 @@ import { expandConceptCluster } from '../conceptResolvers.js'
  * @returns {{ color: string, sound: string, texture: string, shape: string }}
  */
 function resolveSensory(graph, concept) {
-  const result = { color: '', sound: '', texture: '', shape: '' }
-  const edges = graph.get(concept) ?? []
-
-  for (const e of edges) {
-    if (e.direction !== 'fwd') continue
-    if (e.relation === 'color' && !result.color) result.color = e.concept
-    if (e.relation === 'sound' && !result.sound) result.sound = e.concept
-    if (e.relation === 'texture' && !result.texture) result.texture = e.concept
-    if (e.relation === 'shape' && !result.shape) result.shape = e.concept
+  const raw = getSensoryEdges(graph, concept)
+  return {
+    color: raw.color ?? 'dark',
+    sound: raw.sound ?? 'silence',
+    texture: raw.texture ?? 'rough',
+    shape: raw.shape ?? 'formless',
   }
-
-  if (!result.color || !result.sound || !result.texture || !result.shape) {
-    for (const e of edges) {
-      if (e.direction !== 'fwd' || e.relation !== 'evokes') continue
-      const nEdges = graph.get(e.concept) ?? []
-      for (const ne of nEdges) {
-        if (ne.direction !== 'fwd') continue
-        if (ne.relation === 'color' && !result.color) result.color = ne.concept
-        if (ne.relation === 'sound' && !result.sound) result.sound = ne.concept
-        if (ne.relation === 'texture' && !result.texture) result.texture = ne.concept
-        if (ne.relation === 'shape' && !result.shape) result.shape = ne.concept
-      }
-    }
-  }
-
-  if (!result.color) result.color = 'dark'
-  if (!result.sound) result.sound = 'silence'
-  if (!result.texture) result.texture = 'rough'
-  if (!result.shape) result.shape = 'formless'
-  return result
 }
 
 /**
- * Return up to n artifacts with the highest concept overlap against the given concepts.
- * @param {ConceptGraph} graph
- * @param {string[]} concepts
- * @param {Artifact[]} artifacts
- * @param {number} n
- * @returns {Artifact[]}
- */
-function findTopArtifacts(graph, concepts, artifacts, n) {
-  if (artifacts.length === 0) return []
-  const scored = artifacts.map(a => ({ a, score: conceptOverlap(graph, concepts, a.concepts) }))
-  scored.sort((x, y) => y.score - x.score)
-  return scored.filter(x => x.score > 0).slice(0, n).map(x => x.a)
-}
-
-/**
- * Get the verb from myth.act.roles if present, else a fallback from the creator concept.
  * @param {CreationMyth} myth
  * @param {() => number} rng
  * @returns {string}
@@ -111,7 +76,6 @@ const PAST_TO_BASE = {
 }
 
 /**
- * Return base-form verb for "did not X" constructions.
  * @param {CreationMyth} myth
  * @param {() => number} rng
  * @returns {string}
@@ -129,7 +93,6 @@ const SOUND_RITUAL = {
 }
 
 /**
- * Map a raw sound concept to a ritual-appropriate noun phrase.
  * @param {string} sound
  * @returns {string}
  */
@@ -143,7 +106,6 @@ const BARE_NOUNS = new Set([
 ])
 
 /**
- * Return concept with or without "the" — abstract nouns go bare.
  * @param {string} concept
  * @returns {string}
  */
@@ -152,8 +114,6 @@ function articleFor(concept) {
 }
 
 /**
- * Find the primary creator agent among pantheon agents — the one whose
- * domains most overlap with myth.creators.
  * @param {World} world
  * @param {ConceptGraph} graph
  * @returns {Agent|null}
@@ -171,8 +131,37 @@ function findCreatorAgent(world, graph) {
   return best
 }
 
+/**
+ * Gloss convenience wrapper for use in templates.
+ * @param {TextCtx} ctx
+ * @param {string} concept
+ * @returns {string}
+ */
+function g(ctx, concept) {
+  return glossConcept(concept, ctx.graph, ctx.world, ctx.gloss)
+}
+
+/**
+ * Agent reference convenience — name on first use, pronoun after.
+ * @param {Agent} agent
+ * @param {'subject'|'object'|'possessive'} role
+ * @param {GlossState} state
+ * @returns {string}
+ */
+function ref(agent, role, state) {
+  return referAgent(agent, role, state)
+}
+
+/**
+ * Capitalize the first letter of a string.
+ * @param {string} s
+ * @returns {string}
+ */
+function cap(s) {
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 // ── Body templates ──
-// Each template function receives a full context object and returns body prose.
 
 /**
  * @typedef {{
@@ -181,6 +170,7 @@ function findCreatorAgent(world, graph) {
  *   myth: CreationMyth,
  *   world: World,
  *   artifacts: Artifact[],
+ *   gloss: GlossState,
  * }} TextCtx
  */
 
@@ -189,35 +179,47 @@ function findCreatorAgent(world, graph) {
  * @type {Array<(ctx: TextCtx) => string>}
  */
 const HYMN_TEMPLATES = [
-  // Four-beat litany
-  ({ graph, rng, myth }) => {
+  // Four-beat litany with glossed creation
+  (ctx) => {
+    const { graph, rng, myth, world } = ctx
     const before = myth.before.concepts[0] ?? 'the void'
     const sen = resolveSensory(graph, before)
-    const creator = myth.creators[0] ?? myth.act.concepts[0] ?? 'the unnamed'
     const costC = myth.cost.concepts[0] ?? 'what was lost'
     const flawC = myth.flaw.concepts[0] ?? 'the wound'
     const verb = mythVerb(myth, rng)
-    return `Before ${before}, there was only ${sen.color} ${sen.sound}. ${creator} moved through it and did not rest until the ${verb} was done. The cost was ${costC}; the price was paid once and is paid still. We sing against the ${flawC}. We sing it back. We sing.`
+    const creator = findCreatorAgent(world, graph)
+    const creatorName = creator ? ref(creator, 'subject', ctx.gloss) : (myth.creators[0] ?? 'the unnamed')
+    const pro = creator ? getPronouns(creator) : null
+    const sub = pro ? cap(pro.subject) : creatorName
+    return `Before ${g(ctx, before)}, there was only ${sen.color} ${sen.sound}. ${creatorName} moved through it and did not rest until the ${verb} was done. ${sub} paid with ${g(ctx, costC)}, and the price holds still. We sing against ${g(ctx, flawC)}. We sing it back. We sing.`
   },
   // Invocation with repetition
-  ({ graph, rng, myth }) => {
-    const creator = myth.creators[0] ?? 'the first'
+  (ctx) => {
+    const { graph, rng, myth, world } = ctx
+    const creator = findCreatorAgent(world, graph)
+    const name = creator ? creator.name : (myth.creators[0] ?? 'the first')
+    if (creator) ctx.gloss.namedAgents.add(creator.id)
     const actC = myth.act.concepts[1] ?? myth.act.concepts[0] ?? 'the shaping'
-    const sen = resolveSensory(graph, actC)
     const flawC = myth.flaw.concepts[0] ?? 'the wound'
     const verb = mythVerb(myth, rng)
-    return `${creator}, ${creator}, who ${verb} the ${actC} from ${sen.texture} and ${sen.color}: we name the world for you. We name the ${sen.sound} for you. We name the ${flawC} for you, because it too is yours. Because you left it. Because it will not leave us.`
+    const pro = creator ? getPronouns(creator) : null
+    const poss = pro ? pro.possessive : 'their'
+    return `${name}, ${name}, who ${verb} ${g(ctx, actC)} from ${poss} own hands: we name the world for you. We name the rivers and the stone for you. We name ${g(ctx, flawC)} for you, because it too is yours. Because you left it. Because it will not leave us.`
   },
-  // Creation sequence
-  ({ graph, rng, myth }) => {
+  // Creation sequence — most narrative
+  (ctx) => {
+    const { graph, rng, myth, world } = ctx
     const before = myth.before.concepts[0] ?? 'the void'
     const sen = resolveSensory(graph, before)
-    const creator = myth.creators[0] ?? 'the first'
     const substance = myth.worldAfter ?? myth.act.concepts[0] ?? 'the world'
     const costC = myth.cost.concepts[0] ?? 'what was given'
     const flawC = myth.flaw.concepts[0] ?? 'the wound'
     const verb = mythVerb(myth, rng)
-    return `In the ${sen.shape} before ${sen.color}, in the ${sen.sound} before sound: there was ${creator}. ${creator} took ${before} and from it ${verb} ${substance}. ${costC} was the door through which the world passed. ${flawC} followed after. This is the oldest hymn. This is the only hymn.`
+    const creator = findCreatorAgent(world, graph)
+    const creatorName = creator ? ref(creator, 'subject', ctx.gloss) : (myth.creators[0] ?? 'the first')
+    const pro = creator ? getPronouns(creator) : null
+    const sub = pro ? cap(pro.subject) : creatorName
+    return `In the ${sen.shape} before ${sen.color}, in the ${sen.sound} before sound, there was ${creatorName}. ${sub} took ${g(ctx, before)} and from it ${verb} ${g(ctx, substance)}. ${cap(g(ctx, costC))} was the door through which the world passed. ${cap(g(ctx, flawC))} followed after. This is the oldest hymn. This is the only hymn.`
   },
 ]
 
@@ -227,34 +229,47 @@ const HYMN_TEMPLATES = [
  */
 const FOLK_TEMPLATES = [
   // Grandmother story
-  ({ graph, rng, myth }, event) => {
-    const creator = myth.creators[0] ?? myth.act.concepts[0] ?? 'the old one'
+  (ctx, event) => {
+    const { graph, rng, myth, world } = ctx
+    const creator = findCreatorAgent(world, graph)
+    const creatorName = creator ? ref(creator, 'subject', ctx.gloss) : (myth.creators[0] ?? myth.act.concepts[0] ?? 'the old one')
     let actC = myth.act.concepts[0] ?? 'the shaping'
-    if (creator === actC) {
+    const creatorConcept = myth.creators[0] ?? myth.act.concepts[0]
+    if (creatorConcept === actC) {
       actC = myth.before.concepts[0] ?? myth.cost.concepts[0] ?? 'the shaping'
     }
     const flawC = myth.flaw.concepts[0] ?? 'the thing that came after'
-    const eventC = event ? (event.consequence.concepts[0] ?? actC) : actC
+    let eventC = event ? (event.consequence.concepts[0] ?? actC) : actC
+    if (eventC === creatorConcept || eventC === actC) {
+      eventC = event ? (event.action.concepts[0] ?? myth.cost.concepts[0] ?? 'the old trouble') : (myth.cost.concepts[0] ?? 'the old trouble')
+    }
     const sen = resolveSensory(graph, flawC)
     const verb = mythVerb(myth, rng)
-    return `They say when the sky was new, ${creator} found ${actC} and ${verb} it open. That is why the ${flawC} still comes when the ${sen.color} fades. My grandmother said to never say the name of ${eventC} at dusk.`
+    return `They say when the sky was new, ${creatorName} found ${g(ctx, actC)} and ${verb} it open. That is why ${g(ctx, flawC)} still comes when the ${sen.color} fades. My grandmother said to never speak of ${g(ctx, eventC)} at dusk.`
   },
   // The old ones knew
-  ({ graph, myth }, event) => {
-    const creator = myth.creators[0] ?? 'the first'
+  (ctx, event) => {
+    const { graph, myth, world } = ctx
+    const creator = findCreatorAgent(world, graph)
+    const creatorName = creator ? ref(creator, 'subject', ctx.gloss) : (myth.creators[0] ?? 'the first')
     const costC = myth.cost.concepts[0] ?? 'something irretrievable'
     const flawC = myth.flaw.concepts[0] ?? 'the wound'
     const sen = resolveSensory(graph, flawC)
     const result = event ? event.consequence.concepts[0] : (myth.worldAfter ?? 'the world')
-    return `The old ones knew. ${creator} did not mean to leave the ${costC} behind. But ${flawC} crept in while the ${sen.texture} was still warm. You can still find it in ${result}, if you know where to look.`
+    const pro = creator ? getPronouns(creator) : null
+    const sub = pro ? cap(pro.subject) : creatorName
+    return `The old ones knew. ${creatorName} did not mean to leave ${g(ctx, costC)} behind. But ${g(ctx, flawC)} crept in while the ${sen.texture} was still warm. ${sub} could not take it back. You can still find it in ${g(ctx, result)}, if you know where to look.`
   },
   // Child-simple
-  ({ myth }, event) => {
-    const creator = myth.creators[0] ?? 'the shaper'
+  (ctx, event) => {
+    const { myth, world, graph } = ctx
+    const creator = findCreatorAgent(world, graph)
+    const creatorName = creator ? ref(creator, 'subject', ctx.gloss) : (myth.creators[0] ?? 'the shaper')
     const costC = myth.cost.concepts[0] ?? 'something dear'
-    const flawC = myth.flaw.concepts[0] ?? 'the trouble'
-    const marker = event ? event.legacy.concepts[0] : flawC
-    return `First there was nothing. Then ${creator} made everything. But ${creator} had to give up ${costC} to do it. That is why we remember ${marker} — because it cost something to be here.`
+    const marker = event ? event.legacy.concepts[0] : (myth.flaw.concepts[0] ?? 'the trouble')
+    const pro = creator ? getPronouns(creator) : null
+    const sub = pro ? cap(pro.subject) : creatorName
+    return `First there was nothing. Then ${creatorName} made everything. But ${sub} had to give up ${g(ctx, costC)} to do it. That is why we remember ${g(ctx, marker)} — because it cost something to be here.`
   },
 ]
 
@@ -264,31 +279,37 @@ const FOLK_TEMPLATES = [
  */
 const HERESY_TEMPLATES = [
   // The priests are wrong
-  ({ graph, myth }, event) => {
-    const creator = myth.creators[0] ?? 'the one they name'
+  (ctx, event) => {
+    const { graph, myth, world } = ctx
+    const creator = findCreatorAgent(world, graph)
+    const creatorName = creator ? ref(creator, 'subject', ctx.gloss) : (myth.creators[0] ?? 'the one they name')
     const flawC = myth.flaw.concepts[0] ?? 'the wound'
     const sen = resolveSensory(graph, flawC)
     const altC = event ? event.action.concepts[0] : (myth.important[0] ?? myth.act.concepts[1] ?? 'the other thing')
-    return `The priests say ${creator} made the world from ${sen.texture}. This is not what the ${flawC} teaches. The ${flawC} was there first. The ${flawC} is older. What they call creation was only ${altC}. Do not bow to the ${creator}. The ${flawC} remembers the truth.`
+    return `The priests say ${creatorName} made the world from ${sen.texture}. This is not what ${g(ctx, flawC)} teaches. It was there first. It is older. What they call creation was only ${g(ctx, altC)}. Do not bow to the maker. ${cap(g(ctx, flawC))} remembers the truth.`
   },
   // What the makers kept
-  ({ graph, myth }, event) => {
-    const creator = myth.creators[0] ?? 'the shaper'
+  (ctx, event) => {
+    const { graph, myth, world } = ctx
+    const creator = findCreatorAgent(world, graph)
+    const creatorName = creator ? ref(creator, 'subject', ctx.gloss) : (myth.creators[0] ?? 'the shaper')
     const costC = myth.cost.concepts[0] ?? 'the price'
     const actC = myth.act.concepts[0] ?? 'the making'
     const sen = resolveSensory(graph, actC)
     const altC = event ? event.action.concepts[0] : (myth.bad[0] ?? sen.shape)
-    return `We are taught the cost was ${costC}. We are not taught what ${creator} kept. Ask what remains in the ${sen.color} places. Ask why ${altC} and ${creator} share the same ${sen.texture}. The makers always keep the best parts.`
+    return `We are taught the cost was ${g(ctx, costC)}. We are not taught what ${creatorName} kept. Ask what remains in the ${sen.color} places. Ask why ${g(ctx, altC)} and the maker share the same ${sen.texture}. The makers always keep the best parts.`
   },
   // The overflow reinterpretation
-  ({ graph, rng, myth }, event) => {
-    const creator = myth.creators[0] ?? 'the first'
+  (ctx, event) => {
+    const { graph, rng, myth, world } = ctx
+    const creator = findCreatorAgent(world, graph)
+    const creatorName = creator ? ref(creator, 'subject', ctx.gloss) : (myth.creators[0] ?? 'the first')
     const actC = myth.act.concepts[0] ?? 'the shaping'
     const costC = myth.cost.concepts[0] ?? 'the sacrifice'
     const sen = resolveSensory(graph, costC)
     const verb = mythVerbBase(myth, rng)
     const altC = event ? event.situation.concepts[0] : (myth.worldBefore ?? actC)
-    return `${creator} did not ${verb} from love. The ${actC} was ${sen.texture} desperation. The ${altC} was all that remained after ${costC} was consumed. We are not the gift. We are what spilled.`
+    return `${creatorName} did not ${verb} from love. ${cap(g(ctx, actC))} was ${sen.texture} desperation. ${cap(g(ctx, altC))} was all that remained after ${g(ctx, costC)} was consumed. We are not the gift. We are what spilled.`
   },
 ]
 
@@ -298,22 +319,25 @@ const HERESY_TEMPLATES = [
  */
 const FRAGMENT_TEMPLATES = [
   // Comparison of accounts
-  ({ myth }, event) => {
-    const creator = myth.creators[0] ?? 'the primary agent'
+  (ctx, event) => {
+    const { myth, world, graph } = ctx
+    const creator = findCreatorAgent(world, graph)
+    const creatorName = creator ? ref(creator, 'subject', ctx.gloss) : (myth.creators[0] ?? 'the primary agent')
     const costC = myth.cost.concepts[0] ?? 'the cost'
     const altC = event ? event.action.concepts[0] : (myth.important[0] ?? myth.act.concepts[1] ?? 'a secondary role')
     const archetype = event ? event.archetype : myth.recipe
-    return `Accounts differ on the role of ${altC}. Northern traditions hold that ${creator} acted alone; the ${archetype} record assigns ${altC} a shared part. Both accounts agree on ${costC}. This fragment predates the later schism, if the paper can be trusted.`
+    return `Accounts differ on the role of ${g(ctx, altC)}. Northern traditions hold that ${creatorName} acted alone; the ${archetype} record assigns ${g(ctx, altC)} a shared part. Both accounts agree on ${g(ctx, costC)}. This fragment predates the later schism, if the paper can be trusted.`
   },
   // Three contradictions
-  ({ myth }, event) => {
+  (ctx, event) => {
+    const { myth } = ctx
     const flawC = myth.flaw.concepts[0] ?? 'the flaw'
     const costC = myth.cost.concepts[0] ?? 'the cost'
     const actC = myth.act.concepts[0] ?? 'the act'
     const archetype = event ? event.archetype : myth.recipe
     const interp1 = event ? event.consequence.concepts[0] : (myth.worldAfter ?? 'the result')
     const interp2 = flawC
-    return `The ${archetype} account contradicts the creation record at two points: first, ${costC} is treated as instrument rather than casualty; second, ${actC} is presented as ${interp1} rather than ${interp2}. Margin note, added later: "They are both wrong about the ${flawC}."`
+    return `The ${archetype} account contradicts the creation record at two points: first, ${g(ctx, costC)} is treated as instrument rather than casualty; second, ${g(ctx, actC)} is presented as ${g(ctx, interp1)} rather than ${interp2}. Margin note, added later: "They are both wrong about ${g(ctx, flawC)}."`
   },
 ]
 
@@ -323,27 +347,33 @@ const FRAGMENT_TEMPLATES = [
  */
 const PRAYER_TEMPLATES = [
   // Petition
-  ({ graph }, agent) => {
+  (ctx, agent) => {
+    const { graph } = ctx
     const d1 = agent.domains[0] ?? 'the unnamed'
     const d2 = agent.domains[1] ?? d1
     const sen = resolveSensory(graph, d1)
     const flawC = agent.disposition ?? 'the wound'
-    return `${agent.name}, ${agent.title},\nyou who hold ${d1} and know ${d2}:\nkeep ${articleFor(flawC)} from the ${sen.texture} places.\nLet ${sen.color} be the color of your returning.`
+    ctx.gloss.namedAgents.add(agent.id)
+    return `${agent.name}, ${agent.title},\nyou who hold ${g(ctx, d1)} and know ${g(ctx, d2)}:\nkeep ${articleFor(flawC)} from the ${sen.texture} places.\nLet ${sen.color} be the color of your returning.`
   },
   // Gratitude offering
-  ({ graph }, agent) => {
+  (ctx, agent) => {
+    const { graph } = ctx
     const d1 = agent.domains[0] ?? 'the unnamed'
     const sen = resolveSensory(graph, d1)
     const flawC = agent.disposition ?? 'the wound'
-    return `We give ${sen.texture} things to you, ${agent.name}.\nWe burn ${sen.color} offerings. We mark the threshold with ${soundAsRitual(sen.sound)}.\nBecause you remain. Because ${articleFor(flawC)} has not taken you yet.`
+    ctx.gloss.namedAgents.add(agent.id)
+    return `We give ${sen.texture} things to you, ${agent.name}, ${agent.title} — you who are ${g(ctx, d1)}.\nWe burn ${sen.color} offerings. We mark the threshold in ${soundAsRitual(sen.sound)}.\nBecause you remain. Because ${articleFor(flawC)} has not taken you yet.`
   },
   // Double-naming
-  ({ graph }, agent) => {
+  (ctx, agent) => {
+    const { graph } = ctx
     const d1 = agent.domains[0] ?? 'the unnamed'
     const d2 = agent.domains[1] ?? d1
     const sen = resolveSensory(graph, d1)
     const flawC = agent.disposition ?? 'the darkness'
-    return `Your name in the old tongue is ${agent.name}. Your name in ours is ${agent.title}.\nWe name you ${d1}. We name you ${d2}.\nDo not let ${articleFor(flawC)} find our ${soundAsRitual(sen.sound)}.`
+    ctx.gloss.namedAgents.add(agent.id)
+    return `Your name in the old tongue is ${agent.name}. Your name in ours is ${agent.title}.\nWe name you ${g(ctx, d1)}. We name you ${g(ctx, d2)}.\nDo not let ${articleFor(flawC)} find our ${soundAsRitual(sen.sound)}.`
   },
 ]
 
@@ -352,23 +382,28 @@ const PRAYER_TEMPLATES = [
  * @type {Array<(ctx: TextCtx) => string>}
  */
 const PROPHECY_TEMPLATES = [
-  // Imagistic signs
-  ({ graph, myth, world }) => {
+  // Imagistic signs with physical grounding
+  (ctx) => {
+    const { graph, myth, world } = ctx
     const flawC = myth.flaw.concepts[0] ?? 'the wound'
     const sen = resolveSensory(graph, flawC)
     const crisisC = world.present?.crisis.concepts[0] ?? flawC
     const terrain = world.geogony?.terrainTypes[0]?.name ?? 'the stone places'
-    const creator = myth.creators[0] ?? 'the first'
-    return `When the ${flawC} finds its ${sen.color} again,\nwhen ${crisisC} walks the ${terrain},\nwhen ${creator} speaks in ${sen.sound}:\ncount what remains. If fewer than before, do not wait.`
+    const landmark = world.geogony?.landmarks[0]?.name ?? 'the old place'
+    const creator = findCreatorAgent(world, graph)
+    const creatorName = creator ? ref(creator, 'subject', ctx.gloss) : (myth.creators[0] ?? 'the first')
+    return `When ${g(ctx, flawC)} finds its ${sen.color} again,\nwhen ${g(ctx, crisisC)} walks the ${terrain} near ${landmark},\nwhen ${creatorName} speaks in ${sen.sound}:\ncount what remains. If fewer than before, do not wait.`
   },
   // Sequential already-happened
-  ({ graph, rng, myth, world }) => {
+  (ctx) => {
+    const { graph, rng, myth, world } = ctx
     const flawC = myth.flaw.concepts[0] ?? 'the wound'
     const crisisC = world.present?.crisis.concepts[0] ?? flawC
     const actC = myth.act.concepts[0] ?? 'the shaping'
     const verb = mythVerb(myth, rng)
     const sen = resolveSensory(graph, crisisC)
-    return `First the ${actC} will ${verb} again.\nThen the ${flawC} will walk in ${sen.texture}.\nThen the ${crisisC} will find its voice.\nThis is not a warning. This already happened. This is happening now.`
+    const terrain = world.geogony?.terrainTypes[1]?.name ?? world.geogony?.terrainTypes[0]?.name ?? 'the deep places'
+    return `First ${g(ctx, actC)} will ${verb} again.\nThen ${g(ctx, flawC)} will walk in ${sen.texture} across the ${terrain}.\nThen ${g(ctx, crisisC)} will find its voice.\nThis is not a warning. This already happened. This is happening now.`
   },
 ]
 
@@ -378,72 +413,86 @@ const PROPHECY_TEMPLATES = [
  */
 const LAMENT_TEMPLATES = [
   // Direct address
-  ({ graph, myth }, agent) => {
+  (ctx, agent) => {
+    const { graph, myth } = ctx
     const d1 = agent.domains[0] ?? 'the unnamed'
     const d2 = agent.domains[1] ?? d1
     const sen = resolveSensory(graph, d1)
     const costC = myth.cost.concepts[0] ?? 'the offering'
     const flawC = myth.flaw.concepts[0] ?? 'the wound'
+    const pro = getPronouns(agent)
     const landmark = agent.state === 'exiled' ? 'the edge of things' : 'the old place'
-    return `O ${agent.name}, you who were ${d1} and ${d2}:\nwhere is the ${sen.color} of your passing?\nWe left ${costC} at ${landmark} but you did not return.\nThe ${flawC} fills the shape where you were.`
+    ctx.gloss.namedAgents.add(agent.id)
+    return `O ${agent.name}, ${agent.title}, you who were ${g(ctx, d1)} and ${g(ctx, d2)}:\nwhere is the ${sen.color} of ${pro.possessive} passing?\nWe left ${g(ctx, costC)} at ${landmark} but ${pro.subject} did not return.\n${cap(g(ctx, flawC))} fills the shape where ${pro.subject} ${pro.subject === 'they' ? 'were' : 'was'}.`
   },
   // The world was different
-  ({ graph }, agent) => {
+  (ctx, agent) => {
+    const { graph } = ctx
     const d1 = agent.domains[0] ?? 'the unnamed'
     const sen = resolveSensory(graph, d1)
     const d2 = agent.domains[1] ?? d1
-    return `The world was ${sen.texture} when ${agent.name} was in it.\nNow the ${sen.color} has gone out.\nWe have ${d1}. We have ${sen.sound}.\nWe do not have ${agent.name}.\nWe do not have ${d2}.`
+    const pro = getPronouns(agent)
+    ctx.gloss.namedAgents.add(agent.id)
+    return `The world was ${sen.texture} when ${agent.name} was in it.\nNow the ${sen.color} has gone out.\nWe have ${g(ctx, d1)}. We have ${sen.sound}.\nWe do not have ${agent.name}.\nWe do not have ${g(ctx, d2)}.\n${cap(pro.subject)} left, and ${pro.possessive} absence is a ${sen.shape} we cannot fill.`
   },
 ]
 
 /**
- * Parable templates — moral story derived from event.
+ * Parable templates — moral stories derived from events.
+ * Four distinct scaffolds, each producing a different narrative voice.
  * @type {Array<(ctx: TextCtx, event: MythicEvent) => string>}
  */
 const PARABLE_TEMPLATES = [
-  // Hubris/cautionary
-  ({ graph, world }, event) => {
+  // Travelers scaffold — two people, physical objects, physical consequence
+  (ctx, event) => {
+    const { graph, world } = ctx
     const actC = event.action.concepts[0] ?? 'the act'
     const conseqC = event.consequence.concepts[0] ?? 'the consequence'
-    const sen = resolveSensory(graph, conseqC)
+    const legacyC = event.legacy.concepts[0] ?? actC
     const region = world.regions.find(r => r.taggedBy.includes(event.index))
     const regionName = region?.name ?? 'that place'
-    const legacyC = event.legacy.concepts[0] ?? actC
-    return `There was once one who held ${actC} and wanted more. They reached for ${conseqC} until the ${sen.texture} broke. Now we call that place ${regionName}. When you want more than your ${legacyC} allows, remember what the ${sen.sound} said.`
+    const senAct = resolveSensory(graph, actC)
+    const senConseq = resolveSensory(graph, conseqC)
+    const people = world.anthropogony?.peoples[0]?.name ?? 'travelers'
+    return `Two ${people} came to ${g(ctx, regionName)}. One carried a ${senAct.texture} bundle. The other carried a ${senConseq.color} stone. They argued through the night. By morning, only ${g(ctx, legacyC)} remained, and the ground itself was changed — ${senConseq.texture} where it had been ${senAct.texture}. This is why ${regionName} is the way it is.`
   },
-  // Sacrifice/duty
-  ({ graph }, event) => {
-    const costC = event.consequence.concepts[0] ?? 'the cost'
-    const sen = resolveSensory(graph, costC)
-    const actC = event.action.concepts[0] ?? 'the act'
-    const legacyC = event.legacy.concepts[0] ?? costC
-    return `A time came when ${costC} had to be given. The one who gave it did not hesitate. The ${actC} that followed was ${sen.color} and ${sen.texture}. Do not call it a tragedy. Call it ${legacyC}. Call it what was owed.`
-  },
-  // Warning from war/conflict
-  ({ graph, world }, event) => {
-    const situC = event.situation.concepts[0] ?? 'conflict'
-    const conseqC = event.consequence.concepts[0] ?? 'the result'
-    const legacyC = event.legacy.concepts[0] ?? conseqC
-    const sen = resolveSensory(graph, situC)
-    const region = world.regions.find(r => r.taggedBy.includes(event.index))
-    const regionName = region?.name ?? 'that ground'
-    return `${situC} and ${conseqC} met at ${regionName}. One carried ${sen.texture} purpose. One carried ${sen.color} ambition. What remained was ${legacyC}. This is not a parable. This is a reminder of what ${sen.sound} sounds like when it ends.`
-  },
-  // Fool's bargain
-  ({ graph }, event) => {
+  // Bargain scaffold — exchange, unexpected consequence, origin story
+  (ctx, event) => {
+    const { graph, world } = ctx
     const actC = event.action.concepts[0] ?? 'the act'
     const conseqC = event.consequence.concepts[0] ?? 'the consequence'
     const legacyC = event.legacy.concepts[0] ?? actC
-    const sen = resolveSensory(graph, actC)
-    return `A fool once traded ${actC} for ${conseqC}, believing the ${sen.texture} would hold. It did not. The ${sen.color} faded. The ${conseqC} grew teeth. Now we call that kind of bargain ${legacyC}, and we do not make it twice.`
+    const senAct = resolveSensory(graph, actC)
+    const agent = world.agents.find(a => event.agentChanges.some(c => c.agentId === a.id))
+    const agentName = agent ? ref(agent, 'subject', ctx.gloss) : 'a figure from the old days'
+    const pro = agent ? getPronouns(agent) : { subject: 'they', possessive: 'their' }
+    return `${cap(agentName)} offered ${g(ctx, actC)} in exchange for ${g(ctx, conseqC)}. The bargain was struck. A season later, ${pro.subject} returned to find the ${senAct.texture} had turned ${senAct.color} and would not change back. Now we call that kind of bargain ${g(ctx, legacyC)}, and we do not make it twice.`
   },
-  // Two paths
-  ({ graph }, event) => {
-    const situC = event.situation.concepts[0] ?? 'the crossroads'
-    const actC = event.action.concepts[0] ?? 'the choice'
-    const conseqC = event.consequence.concepts[0] ?? 'what followed'
-    const sen = resolveSensory(graph, conseqC)
-    return `Before ${situC}, there were two paths. One led through ${actC}. One led around it. The wise chose the longer road. The brave chose ${actC}. Neither arrived where they intended. Both found ${conseqC}, ${sen.texture} and ${sen.color}, waiting at the end.`
+  // Witness scaffold — old person recounts, cryptic quote, physical evidence
+  (ctx, event) => {
+    const { graph, world } = ctx
+    const actC = event.action.concepts[0] ?? 'the act'
+    const conseqC = event.consequence.concepts[0] ?? 'the consequence'
+    const senConseq = resolveSensory(graph, conseqC)
+    const agent = world.agents.find(a => event.agentChanges.some(c => c.agentId === a.id))
+    const agentName = agent ? ref(agent, 'subject', ctx.gloss) : 'a stranger'
+    const landmark = world.geogony?.landmarks.find(l => l.regionId && world.regions.some(r => r.id === l.regionId && r.taggedBy.includes(event.index)))
+    const landmarkName = landmark?.name ?? 'the crossroads'
+    const people = world.anthropogony?.peoples[0]?.name ?? 'the old people'
+    return `An old one of ${people} tells of seeing ${agentName} at ${landmarkName}. ${cap(agentName)} was gathering ${g(ctx, actC)} in ${senConseq.texture} handfuls. When asked what for, the answer was: "${cap(g(ctx, conseqC))} must be fed, or it feeds on us." The old one does not speak of it now, but the ${senConseq.color} stain at ${landmarkName} has not faded.`
+  },
+  // Forbidden act scaffold — taboo, mythic origin, physical consequence
+  (ctx, event) => {
+    const { graph, world } = ctx
+    const actC = event.action.concepts[0] ?? 'the act'
+    const conseqC = event.consequence.concepts[0] ?? 'the consequence'
+    const legacyC = event.legacy.concepts[0] ?? conseqC
+    const senAct = resolveSensory(graph, actC)
+    const region = world.regions.find(r => r.taggedBy.includes(event.index))
+    const regionName = region?.name ?? 'that region'
+    const agent = world.agents.find(a => event.agentChanges.some(c => c.agentId === a.id))
+    const agentName = agent ? ref(agent, 'subject', ctx.gloss) : 'a being from the first days'
+    return `It is forbidden to speak of ${g(ctx, actC)} in ${regionName}. The people say it is because ${agentName} once ${event.archetype === 'war' ? 'fought' : 'acted'} there, and ${g(ctx, conseqC)} has not left the ${senAct.texture} ground since. Those who break the rule find ${g(ctx, legacyC)} waiting for them in the ${senAct.color} hours before dawn.`
   },
 ]
 
@@ -460,7 +509,7 @@ const PARABLE_TEMPLATES = [
  * @returns {string}
  */
 function buildTitle(type, graph, concepts, rng, usedNames, agent, fragmentIndex) {
-  const phonName = nameRegion(graph, concepts, rng, usedNames)
+  const phonName = nameRegion(graph, concepts, rng, { usedNames, entityType: 'text' })
 
   switch (type) {
     case 'hymn':
@@ -484,6 +533,26 @@ function buildTitle(type, graph, concepts, rng, usedNames, agent, fragmentIndex)
   }
 }
 
+// ── Artifact scoring ──
+
+/**
+ * Find the top N artifacts by concept overlap with a concept list.
+ * @param {ConceptGraph} graph
+ * @param {string[]} concepts
+ * @param {Artifact[]} artifacts
+ * @param {number} n
+ * @returns {Artifact[]}
+ */
+function findTopArtifacts(graph, concepts, artifacts, n) {
+  if (artifacts.length === 0) return []
+  return artifacts
+    .map(a => ({ artifact: a, score: conceptOverlap(graph, concepts, a.concepts) }))
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, n)
+    .map(x => x.artifact)
+}
+
 // ── Builders ──
 
 let textCounter = 0
@@ -495,8 +564,10 @@ let textCounter = 0
  */
 function buildHymn(ctx, usedNames) {
   const { graph, rng, myth, artifacts } = ctx
+  const gloss = createGlossState()
+  const localCtx = /** @type {TextCtx} */ ({ ...ctx, gloss })
   const template = pick(rng, HYMN_TEMPLATES)
-  const body = template(ctx)
+  const body = template(localCtx)
   const concepts = [
     ...(myth.before.concepts.slice(0, 2)),
     ...(myth.act.concepts.slice(0, 2)),
@@ -529,8 +600,10 @@ function buildHymn(ctx, usedNames) {
  */
 function buildFolk(ctx, usedNames, event, perspective) {
   const { graph, rng, myth, artifacts } = ctx
+  const gloss = createGlossState()
+  const localCtx = /** @type {TextCtx} */ ({ ...ctx, gloss })
   const template = pick(rng, FOLK_TEMPLATES)
-  const body = template(ctx, event)
+  const body = template(localCtx, event)
   const concepts = [
     myth.act.concepts[0],
     myth.flaw.concepts[0],
@@ -564,8 +637,10 @@ function buildFolk(ctx, usedNames, event, perspective) {
  */
 function buildHeresy(ctx, usedNames, event) {
   const { graph, rng, myth, artifacts } = ctx
+  const gloss = createGlossState()
+  const localCtx = /** @type {TextCtx} */ ({ ...ctx, gloss })
   const template = pick(rng, HERESY_TEMPLATES)
-  const body = template(ctx, event)
+  const body = template(localCtx, event)
   const concepts = event
     ? expandConceptCluster(graph, rng, event.action.concepts[0] ?? myth.flaw.concepts[0] ?? 'void', 2, 4)
     : [myth.flaw.concepts[0], myth.bad[0]].filter(Boolean)
@@ -599,8 +674,10 @@ function buildHeresy(ctx, usedNames, event) {
  */
 function buildFragment(ctx, usedNames, event, fragmentIndex) {
   const { graph, rng, myth, artifacts } = ctx
+  const gloss = createGlossState()
+  const localCtx = /** @type {TextCtx} */ ({ ...ctx, gloss })
   const template = pick(rng, FRAGMENT_TEMPLATES)
-  const body = template(ctx, event)
+  const body = template(localCtx, event)
   const concepts = event
     ? [event.action.concepts[0], event.consequence.concepts[0]].filter(Boolean)
     : [myth.act.concepts[0], myth.cost.concepts[0]].filter(Boolean)
@@ -631,8 +708,10 @@ function buildFragment(ctx, usedNames, event, fragmentIndex) {
  */
 function buildPrayer(ctx, usedNames, agent) {
   const { graph, rng, artifacts } = ctx
+  const gloss = createGlossState()
+  const localCtx = /** @type {TextCtx} */ ({ ...ctx, gloss })
   const template = pick(rng, PRAYER_TEMPLATES)
-  const body = template(ctx, agent)
+  const body = template(localCtx, agent)
   const concepts = expandConceptCluster(graph, rng, agent.domains[0] ?? 'void', 2, 4)
   const topArtifacts = findTopArtifacts(graph, concepts, artifacts, 1)
   const title = buildTitle('prayer', graph, concepts, rng, usedNames, agent)
@@ -658,8 +737,10 @@ function buildPrayer(ctx, usedNames, agent) {
  */
 function buildProphecy(ctx, usedNames) {
   const { graph, rng, myth, artifacts } = ctx
+  const gloss = createGlossState()
+  const localCtx = /** @type {TextCtx} */ ({ ...ctx, gloss })
   const template = pick(rng, PROPHECY_TEMPLATES)
-  const body = template(ctx)
+  const body = template(localCtx)
   const concepts = expandConceptCluster(graph, rng, myth.flaw.concepts[0] ?? 'void', 2, 5)
   const topArtifacts = findTopArtifacts(graph, concepts, artifacts, 1)
   const title = buildTitle('prophecy', graph, concepts, rng, usedNames)
@@ -686,8 +767,10 @@ function buildProphecy(ctx, usedNames) {
  */
 function buildLament(ctx, usedNames, agent) {
   const { graph, rng, artifacts } = ctx
+  const gloss = createGlossState()
+  const localCtx = /** @type {TextCtx} */ ({ ...ctx, gloss })
   const template = pick(rng, LAMENT_TEMPLATES)
-  const body = template(ctx, agent)
+  const body = template(localCtx, agent)
   const concepts = [
     ...agent.domains.slice(0, 2),
     ctx.myth.cost.concepts[0],
@@ -718,8 +801,10 @@ function buildLament(ctx, usedNames, agent) {
  */
 function buildParable(ctx, usedNames, event) {
   const { graph, rng, artifacts } = ctx
+  const gloss = createGlossState()
+  const localCtx = /** @type {TextCtx} */ ({ ...ctx, gloss })
   const template = pick(rng, PARABLE_TEMPLATES)
-  const body = template(ctx, event)
+  const body = template(localCtx, event)
   const concepts = expandConceptCluster(graph, rng, event.legacy.concepts[0] ?? event.concepts[0] ?? 'void', 2, 4)
   const topArtifacts = findTopArtifacts(graph, concepts, artifacts, 1)
   const title = buildTitle('parable', graph, concepts, rng, usedNames)
@@ -761,7 +846,7 @@ export function generateMythTexts(graph, world, rng) {
   const artifacts = world.artifacts ?? []
 
   /** @type {TextCtx} */
-  const ctx = { graph, rng, myth, world, artifacts }
+  const ctx = { graph, rng, myth, world, artifacts, gloss: createGlossState() }
 
   /** @type {Set<string>} */
   const usedNames = new Set()

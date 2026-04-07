@@ -10,6 +10,7 @@ import { nameAgents } from './naming.js'
 import { query } from './query.js'
 import { walkFrom } from './walker.js'
 import { pick } from './utils.js'
+import { assignPronouns } from './pronouns.js'
 import { SHAPES } from './pantheonShapes.js'
 import { addAgent } from './world.js'
 
@@ -37,7 +38,7 @@ import { addAgent } from './world.js'
  *   id: string,
  *   name: string,
  *   title: string,
- *   type: 'god'|'demi-god'|'spirit'|'demon'|'ancestor'|'herald',
+ *   type: 'god'|'demi-god'|'spirit'|'demon'|'ancestor'|'herald'|'hero',
  *   domains: string[],
  *   disposition: string,
  *   relationships: AgentRelationship[],
@@ -47,6 +48,7 @@ import { addAgent } from './world.js'
  *   origin: 'pantheon'|'history'|'landscape',
  *   worshippedBy: string[],
  *   patronOf: string[],
+ *   pronouns: 'he'|'she'|'they'|'it',
  * }} Agent
  */
 
@@ -114,7 +116,12 @@ export function generatePantheon(graph, world, rng) {
   // 7. Determine final states (cleanup pass)
   determineStates(agents, myth)
 
-  // 8. Collect tensions
+  // 8. Assign pronouns
+  for (const agent of agents) {
+    agent.pronouns = assignPronouns(agent, rng)
+  }
+
+  // 9. Collect tensions
   world.tensions = collectTensions(graph, agents)
 }
 
@@ -142,6 +149,7 @@ export function buildAgent(s) {
     origin: /** @type {const} */ ('pantheon'),
     worshippedBy: [],
     patronOf: [],
+    pronouns: /** @type {const} */ ('they'),
   }
 }
 

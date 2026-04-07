@@ -41,15 +41,6 @@ export function clamp(val, min, max) {
   return Math.max(min, Math.min(max, val))
 }
 
-/**
- * @param {number} a
- * @param {number} b
- * @param {number} t — 0..1
- * @returns {number}
- */
-export function lerp(a, b, t) {
-  return a + (b - a) * t
-}
 
 /**
  * Pick a random element from an array using the seeded RNG.

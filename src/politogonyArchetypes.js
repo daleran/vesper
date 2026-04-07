@@ -398,11 +398,6 @@ function remnant(ctx) {
 
 // ── Registry ──
 
-/** @type {string[]} */
-export const POLITOGONY_NAMES = [
-  'theocracy', 'conquest', 'confederation', 'dynasty', 'merchant', 'remnant',
-]
-
 /** @type {Record<string, (ctx: PolitogonyContext) => PolitogonyShape>} */
 export const POLITOGONY_SHAPES = {
   theocracy,
@@ -412,3 +407,6 @@ export const POLITOGONY_SHAPES = {
   merchant,
   remnant,
 }
+
+/** @type {string[]} */
+export const POLITOGONY_NAMES = Object.keys(POLITOGONY_SHAPES)

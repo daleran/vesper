@@ -145,18 +145,3 @@ export function createBadge(text, variant) {
   return badge
 }
 
-/**
- * Create a clickable entity link span for cross-referencing.
- * @param {string} displayName
- * @param {string} entityId
- * @param {string} [entityType] - e.g. 'agent', 'region', 'polity', 'religion', 'artifact'
- * @returns {HTMLSpanElement}
- */
-export function entityLink(displayName, entityId, entityType) {
-  const span = document.createElement('span')
-  span.className = 'entity-link'
-  span.textContent = displayName
-  span.dataset['entityId'] = entityId
-  if (entityType) span.dataset['entityType'] = entityType
-  return span
-}

@@ -15,6 +15,8 @@
  * @import { Artifact } from './artifacts.js'
  * @import { PlayerCharacter } from './character.js'
  * @import { MythText } from './renderers/mythTexts.js'
+ * @import { MorphemeTable } from './naming.js'
+ * @import { Timeline } from './timeline.js'
  */
 
 // ── Typedefs ──
@@ -80,8 +82,10 @@
  *   artifacts: Artifact[] | null,
  *   character: PlayerCharacter | null,
  *   texts: MythText[] | null,
+ *   morphemes: MorphemeTable | null,
  *   renderedLandmarks: Map<string, string> | null,
  *   renderedRegions: Map<string, string> | null,
+ *   timeline: Timeline | null,
  * }} World
  */
 
@@ -111,8 +115,10 @@ export function createWorld(seed) {
     artifacts: null,
     character: null,
     texts: null,
+    morphemes: null,
     renderedLandmarks: null,
     renderedRegions: null,
+    timeline: null,
   }
 }
 
@@ -216,25 +222,6 @@ export function findLandmark(world, id) {
   return (world.geogony?.landmarks ?? []).find(l => l.id === id)
 }
 
-/**
- * Find a people by id.
- * @param {World} world
- * @param {string} id
- * @returns {People | undefined}
- */
-export function findPeople(world, id) {
-  return (world.anthropogony?.peoples ?? []).find(p => p.id === id)
-}
-
-/**
- * Find a lifeform by id.
- * @param {World} world
- * @param {string} id
- * @returns {Lifeform | undefined}
- */
-export function findLifeform(world, id) {
-  return (world.biogony?.lifeforms ?? []).find(l => l.id === id)
-}
 
 /**
  * Find an artifact by id.

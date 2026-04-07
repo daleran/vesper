@@ -20,6 +20,9 @@ export const VIOLENT_RECIPES = new Set(['pantheon-war', 'rebellion', 'corruption
 /** Myths involving uncontrolled spreading or propagation. */
 export const SPREADING_RECIPES = new Set(['contagion', 'utterance'])
 
+/** Myths involving threat, corruption, or contagion. */
+export const THREAT_RECIPES = new Set(['corruption', 'contagion'])
+
 // ── Selection helpers ──
 
 /**

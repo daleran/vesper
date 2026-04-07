@@ -21,6 +21,66 @@ import { pick } from '../utils.js'
  */
 
 /**
+ * @typedef {{
+ *   color: string | null,
+ *   texture: string | null,
+ *   sound: string | null,
+ *   shape: string | null,
+ *   evokes: string[],
+ * }} SensoryEdges
+ */
+
+/**
+ * Resolve color/sound/texture/shape/evokes for a single concept from graph edges.
+ * Falls through evokes neighbors for missing senses. Returns nulls for unresolvable senses.
+ * @param {ConceptGraph} graph
+ * @param {string} concept
+ * @returns {SensoryEdges}
+ */
+export function getSensoryEdges(graph, concept) {
+  /** @type {string | null} */
+  let color = null
+  /** @type {string | null} */
+  let texture = null
+  /** @type {string | null} */
+  let sound = null
+  /** @type {string | null} */
+  let shape = null
+  /** @type {string[]} */
+  const evokes = []
+
+  const edges = graph.get(concept)
+  if (!edges) return { color, texture, sound, shape, evokes }
+
+  for (const e of edges) {
+    if (e.direction !== 'fwd') continue
+    if (e.relation === 'color' && !color) color = e.concept
+    else if (e.relation === 'texture' && !texture) texture = e.concept
+    else if (e.relation === 'sound' && !sound) sound = e.concept
+    else if (e.relation === 'shape' && !shape) shape = e.concept
+    else if (e.relation === 'evokes' && !evokes.includes(e.concept)) evokes.push(e.concept)
+  }
+
+  // One-hop through evokes to find missing senses
+  if (!color || !texture || !sound || !shape) {
+    for (const e of edges) {
+      if (e.direction !== 'fwd' || e.relation !== 'evokes') continue
+      const nEdges = graph.get(e.concept)
+      if (!nEdges) continue
+      for (const ne of nEdges) {
+        if (ne.direction !== 'fwd') continue
+        if (ne.relation === 'color' && !color) color = ne.concept
+        else if (ne.relation === 'texture' && !texture) texture = ne.concept
+        else if (ne.relation === 'sound' && !sound) sound = ne.concept
+        else if (ne.relation === 'shape' && !shape) shape = ne.concept
+      }
+    }
+  }
+
+  return { color, texture, sound, shape, evokes }
+}
+
+/**
  * Build a sensory profile from a set of concepts by walking their
  * color/texture/shape/sound/evokes edges.
  * @param {ConceptGraph} graph

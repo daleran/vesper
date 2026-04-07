@@ -15,6 +15,7 @@ import { walkFrom } from './walker.js'
 import { buildAgent } from './pantheon.js'
 import { nameWorld, nameAgents, nameRegion } from './naming.js'
 import { addAgent } from './world.js'
+import { assignPronouns } from './pronouns.js'
 import { GEOGONY_SHAPES, GEOGONY_NAMES } from './geogonyArchetypes.js'
 import { VIOLENT_RECIPES, ORGANIC_RECIPES, SPREADING_RECIPES, DELIBERATE_RECIPES, applyRecipeBonuses } from './archetypeSelection.js'
 import { resolveShape, resolveSubstance } from './conceptResolvers.js'
@@ -103,12 +104,17 @@ function selectArchetype(rng, myth, world) {
 
 /**
  * Generate a terrain name from its concepts (short, descriptive).
+ * Uses generated morphemes when available; falls back to English shape words.
  * @param {string[]} concepts
  * @param {string} shape
+ * @param {import('./naming.js').MorphemeTable | null} [morphemes]
  * @returns {string}
  */
-function terrainName(concepts, shape) {
+function terrainName(concepts, shape, morphemes) {
   const primary = concepts[0] ?? 'unknown'
+  if (morphemes?.terrain?.[shape]) {
+    return `${primary}-${morphemes.terrain[shape]}`
+  }
   const shapeNames = /** @type {Record<string, string>} */ ({
     slab: 'flats', hollow: 'basins', pillar: 'spires',
     shard: 'shards', spiral: 'coils', coil: 'tangles',
@@ -125,9 +131,10 @@ function terrainName(concepts, shape) {
  * @param {() => number} rng
  * @param {import('./geogonyArchetypes.js').TerrainSeed[]} seeds
  * @param {string} groundSubstance
+ * @param {import('./naming.js').MorphemeTable | null} [morphemes]
  * @returns {TerrainType[]}
  */
-function expandTerrainSeeds(graph, rng, seeds, groundSubstance) {
+function expandTerrainSeeds(graph, rng, seeds, groundSubstance, morphemes) {
   /** @type {TerrainType[]} */
   const terrains = []
   const usedNames = new Set()
@@ -135,7 +142,7 @@ function expandTerrainSeeds(graph, rng, seeds, groundSubstance) {
   for (const seed of seeds) {
     const shape = resolveShape(graph, rng, seed.concepts[0])
     const substance = resolveSubstance(graph, rng, seed.concepts, groundSubstance)
-    let name = terrainName(seed.concepts, shape)
+    let name = terrainName(seed.concepts, shape, morphemes)
     // Ensure unique names
     if (usedNames.has(name)) name = `${seed.concepts[0]}-${shape}`
     usedNames.add(name)
@@ -160,15 +167,16 @@ function expandTerrainSeeds(graph, rng, seeds, groundSubstance) {
  * @param {ConceptGraph} graph
  * @param {() => number} rng
  * @param {import('./geogonyArchetypes.js').LandmarkSeed[]} seeds
+ * @param {import('./naming.js').MorphemeTable | null} [morphemes]
  * @returns {Landmark[]}
  */
-function expandLandmarkSeeds(graph, rng, seeds) {
+function expandLandmarkSeeds(graph, rng, seeds, morphemes) {
   /** @type {Landmark[]} */
   const landmarks = []
   const usedNames = new Set()
 
   for (const seed of seeds) {
-    const name = nameRegion(graph, seed.concepts, rng, usedNames)
+    const name = nameRegion(graph, seed.concepts, rng, { usedNames, entityType: 'place', morphemes })
     landmarks.push({
       id: '',
       name,
@@ -329,81 +337,61 @@ function spawnLandscapeAgents(graph, rng, myth, world, ground, water, sky) {
 
   if (spawned.length > 0) {
     nameAgents(graph, myth, spawned, rng)
+    for (const agent of spawned) {
+      agent.pronouns = assignPronouns(agent, rng)
+    }
   }
 }
 
 // ── Region enrichment ──
 
 /**
- * Enrich history regions with terrain types, landmarks, and climate.
+ * Score and assign 1-3 terrain types to a region, penalizing overuse.
+ * @param {ConceptGraph} graph
+ * @param {Region} region
+ * @param {TerrainType[]} terrains
+ * @param {Map<string, number>} terrainAssignCounts
+ * @returns {string[]}
+ */
+function assignTerrains(graph, region, terrains, terrainAssignCounts) {
+  const scoredTerrains = terrains.map(t => ({
+    terrain: t,
+    score: conceptOverlap(graph, t.concepts, region.concepts),
+  })).sort((a, b) => b.score - a.score)
+
+  const assignedTerrains = []
+  for (const { terrain, score } of scoredTerrains) {
+    if (assignedTerrains.length >= 3) break
+    const count = terrainAssignCounts.get(terrain.name) ?? 0
+    if (count >= 3 && score < 2 && assignedTerrains.length > 0) continue
+    assignedTerrains.push(terrain.name)
+    terrainAssignCounts.set(terrain.name, count + 1)
+  }
+  // Ensure at least 1
+  if (assignedTerrains.length === 0 && terrains.length > 0) {
+    const leastUsed = [...terrainAssignCounts.entries()].sort((a, b) => a[1] - b[1])[0]
+    if (leastUsed) assignedTerrains.push(leastUsed[0])
+  }
+  return assignedTerrains
+}
+
+/**
+ * Assign landmarks to best-matching regions by concept overlap,
+ * generating fallback landmarks for regions that have none.
  * @param {ConceptGraph} graph
  * @param {() => number} rng
  * @param {Region[]} regions
- * @param {TerrainType[]} terrains
+ * @param {RegionEnrichment[]} enrichments
  * @param {Landmark[]} landmarks
- * @param {string[]} globalClimate
  * @param {string} groundSubstance
- * @returns {RegionEnrichment[]}
+ * @param {import('./naming.js').MorphemeTable | null} [morphemes]
  */
-function enrichRegions(graph, rng, regions, terrains, landmarks, globalClimate, groundSubstance) {
-  /** @type {RegionEnrichment[]} */
-  const enrichments = []
-
-  // Track terrain assignment counts to ensure distribution
-  const terrainAssignCounts = new Map(terrains.map(t => [t.name, 0]))
-
-  for (const region of regions) {
-    // Score terrains against this region
-    const scoredTerrains = terrains.map(t => ({
-      terrain: t,
-      score: conceptOverlap(graph, t.concepts, region.concepts),
-    })).sort((a, b) => b.score - a.score)
-
-    // Assign 1-3 terrain types, penalizing overused terrains
-    const assignedTerrains = []
-    for (const { terrain, score } of scoredTerrains) {
-      if (assignedTerrains.length >= 3) break
-      // Skip terrains already assigned to many regions (diminishing returns)
-      const count = terrainAssignCounts.get(terrain.name) ?? 0
-      if (count >= 3 && score < 2 && assignedTerrains.length > 0) continue
-      assignedTerrains.push(terrain.name)
-      terrainAssignCounts.set(terrain.name, count + 1)
-    }
-    // Ensure at least 1
-    if (assignedTerrains.length === 0 && terrains.length > 0) {
-      // Pick the least-used terrain
-      const leastUsed = [...terrainAssignCounts.entries()].sort((a, b) => a[1] - b[1])[0]
-      if (leastUsed) assignedTerrains.push(leastUsed[0])
-    }
-
-    // Find dominant substance for this region
-    const substanceCounts = /** @type {Record<string, number>} */ ({})
-    for (const tName of assignedTerrains) {
-      const terrain = terrains.find(t => t.name === tName)
-      if (terrain) {
-        substanceCounts[terrain.substance] = (substanceCounts[terrain.substance] ?? 0) + 1
-      }
-    }
-    const dominantSubstance = Object.entries(substanceCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? groundSubstance
-
-    // Derive per-region climate from the region's concept tags
-    const regionClimate = deriveRegionClimate(graph, rng, region.concepts, globalClimate)
-
-    enrichments.push({
-      regionId: region.id,
-      terrainTypes: assignedTerrains,
-      landmarks: [],
-      climate: regionClimate,
-      dominantSubstance,
-    })
-  }
-
-  // Assign landmarks to best-matching regions
+function assignLandmarks(graph, rng, regions, enrichments, landmarks, groundSubstance, morphemes) {
   const regionLandmarkCounts = new Map(regions.map(r => [r.id, 0]))
+
   for (const landmark of landmarks) {
     let bestRegion = ''
     let bestScore = -1
-
     for (const region of regions) {
       let score = conceptOverlap(graph, landmark.concepts, region.concepts)
       if (landmark.agentId !== null) score += 1
@@ -412,7 +400,6 @@ function enrichRegions(graph, rng, regions, terrains, landmarks, globalClimate, 
         bestRegion = region.id
       }
     }
-
     if (bestRegion) {
       landmark.regionId = bestRegion
       const enrichment = enrichments.find(e => e.regionId === bestRegion)
@@ -426,13 +413,11 @@ function enrichRegions(graph, rng, regions, terrains, landmarks, globalClimate, 
     if ((regionLandmarkCounts.get(region.id) ?? 0) > 0) continue
     const enrichment = enrichments.find(e => e.regionId === region.id)
     if (!enrichment) continue
-
-    // Walk from the region's primary concept to find a landmark
     const source = region.concepts[0] ?? groundSubstance
     const chain = walkFrom(graph, rng, source, 2, { preferRelations: ['transforms', 'evokes'] })
     const concepts = [...new Set([...chain.path, ...region.concepts.slice(0, 2)])].slice(0, 4)
     const usedNames = new Set(landmarks.map(l => l.name.toLowerCase()))
-    const name = nameRegion(graph, concepts, rng, usedNames)
+    const name = nameRegion(graph, concepts, rng, { usedNames, entityType: 'place', morphemes })
     landmarks.push({
       id: '',
       name,
@@ -444,15 +429,61 @@ function enrichRegions(graph, rng, regions, terrains, landmarks, globalClimate, 
     })
     enrichment.landmarks.push(name)
   }
+}
 
-  // Ensure every terrain type is assigned to at least one region
+/**
+ * Ensure every terrain type appears in at least one region.
+ * @param {Map<string, number>} terrainAssignCounts
+ * @param {RegionEnrichment[]} enrichments
+ */
+function ensureTerrainCoverage(terrainAssignCounts, enrichments) {
   for (const [name, count] of terrainAssignCounts) {
     if (count === 0 && enrichments.length > 0) {
-      // Put unused terrain in the region with fewest terrains
       const sparse = enrichments.reduce((a, b) => a.terrainTypes.length <= b.terrainTypes.length ? a : b)
       sparse.terrainTypes.push(name)
     }
   }
+}
+
+/**
+ * Enrich history regions with terrain types, landmarks, and climate.
+ * @param {ConceptGraph} graph
+ * @param {() => number} rng
+ * @param {Region[]} regions
+ * @param {TerrainType[]} terrains
+ * @param {Landmark[]} landmarks
+ * @param {string[]} globalClimate
+ * @param {string} groundSubstance
+ * @param {import('./naming.js').MorphemeTable | null} [morphemes]
+ * @returns {RegionEnrichment[]}
+ */
+function enrichRegions(graph, rng, regions, terrains, landmarks, globalClimate, groundSubstance, morphemes) {
+  /** @type {RegionEnrichment[]} */
+  const enrichments = []
+  const terrainAssignCounts = new Map(terrains.map(t => [t.name, 0]))
+
+  for (const region of regions) {
+    const assignedTerrains = assignTerrains(graph, region, terrains, terrainAssignCounts)
+
+    // Find dominant substance for this region
+    const substanceCounts = /** @type {Record<string, number>} */ ({})
+    for (const tName of assignedTerrains) {
+      const terrain = terrains.find(t => t.name === tName)
+      if (terrain) substanceCounts[terrain.substance] = (substanceCounts[terrain.substance] ?? 0) + 1
+    }
+    const dominantSubstance = Object.entries(substanceCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? groundSubstance
+
+    enrichments.push({
+      regionId: region.id,
+      terrainTypes: assignedTerrains,
+      landmarks: [],
+      climate: deriveRegionClimate(graph, rng, region.concepts, globalClimate),
+      dominantSubstance,
+    })
+  }
+
+  assignLandmarks(graph, rng, regions, enrichments, landmarks, groundSubstance, morphemes)
+  ensureTerrainCoverage(terrainAssignCounts, enrichments)
 
   return enrichments
 }
@@ -479,7 +510,7 @@ export function generateGeogony(graph, world, rng) {
   const shape = shapeFn({ graph, rng, myth, world })
 
   // 4. Expand terrain seeds (target 6-10)
-  let terrainTypes = expandTerrainSeeds(graph, rng, shape.terrainSeeds, shape.groundSubstance)
+  let terrainTypes = expandTerrainSeeds(graph, rng, shape.terrainSeeds, shape.groundSubstance, world.morphemes)
   // If we have fewer than 6 terrains, generate more from region concepts
   if (terrainTypes.length < 6 && world.regions.length > 0) {
     const existingConcepts = new Set(terrainTypes.flatMap(t => t.concepts))
@@ -490,7 +521,7 @@ export function generateGeogony(graph, world, rng) {
       const concept = fresh[0]
       const shape2 = resolveShape(graph, rng, concept)
       const substance = resolveSubstance(graph, rng, [concept], shape.groundSubstance)
-      const name = terrainName([concept], shape2)
+      const name = terrainName([concept], shape2, world.morphemes)
       terrainTypes.push({
         id: '',
         name,
@@ -505,7 +536,7 @@ export function generateGeogony(graph, world, rng) {
   terrainTypes = terrainTypes.slice(0, 10)
 
   // 5. Expand landmark seeds (target 4-8)
-  let landmarks = expandLandmarkSeeds(graph, rng, shape.landmarkSeeds)
+  let landmarks = expandLandmarkSeeds(graph, rng, shape.landmarkSeeds, world.morphemes)
   // Fill to at least 4 from myth concepts
   if (landmarks.length < 4) {
     const usedNames = new Set(landmarks.map(l => l.name.toLowerCase()))
@@ -515,7 +546,7 @@ export function generateGeogony(graph, world, rng) {
     for (const concept of mythConcepts) {
       if (landmarks.length >= 6) break
       const nearby = query(graph).nearby(concept, 1).exclude(concept).get().slice(0, 2)
-      const name = nameRegion(graph, [concept, ...nearby], rng, usedNames)
+      const name = nameRegion(graph, [concept, ...nearby], rng, { usedNames, entityType: 'place', morphemes: world.morphemes })
       landmarks.push({
         id: '',
         name,
@@ -539,7 +570,7 @@ export function generateGeogony(graph, world, rng) {
   spawnLandscapeAgents(graph, rng, myth, world, shape.groundSubstance, shape.waterSubstance, shape.skySubstance)
 
   // 9. Enrich history regions (per-region climate derived inside)
-  const regionEnrichments = enrichRegions(graph, rng, world.regions, terrainTypes, landmarks, globalClimate, shape.groundSubstance)
+  const regionEnrichments = enrichRegions(graph, rng, world.regions, terrainTypes, landmarks, globalClimate, shape.groundSubstance, world.morphemes)
 
   // Assign stable IDs to all terrain types and landmarks
   for (let i = 0; i < terrainTypes.length; i++) {

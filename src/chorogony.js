@@ -44,7 +44,7 @@ import { query } from './query.js'
  * @param {ChorogonyRegion[]} regions
  * @param {'peoples'|'lifeforms'} targetField
  */
-function placeEntities(graph, entities, regions, targetField) {
+export function placeEntities(graph, entities, regions, targetField) {
   for (const entity of entities) {
     if (regions.length === 0) continue
 
@@ -66,7 +66,7 @@ function placeEntities(graph, entities, regions, targetField) {
  * @param {string|undefined} dominantSubstance
  * @returns {string[]}
  */
-function deriveResources(graph, rng, region, dominantSubstance) {
+export function deriveResources(graph, rng, region, dominantSubstance) {
   const resourceSet = new Set()
 
   // Include dominant substance from geogony enrichment
@@ -106,7 +106,7 @@ function deriveResources(graph, rng, region, dominantSubstance) {
  * @param {string[]} flawLifeNames - names of flaw lifeforms placed in this region
  * @returns {string[]}
  */
-function deriveDangers(graph, region, myth, events, flawLifeNames) {
+export function deriveDangers(graph, region, myth, events, flawLifeNames) {
   const dangerSet = new Set()
 
   // Flaw/bad concepts that overlap region concepts
@@ -164,7 +164,7 @@ function deriveDangers(graph, region, myth, events, flawLifeNames) {
  * @param {ChorogonyRegion} region
  * @returns {string[]}
  */
-function deriveMood(graph, region) {
+export function deriveMood(graph, region) {
   const moodSet = new Set()
   const regionConceptSet = new Set(region.concepts)
   const dominant = region.concepts.slice(0, 3)

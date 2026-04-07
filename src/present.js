@@ -14,7 +14,7 @@ import { walkFrom } from './walker.js'
 import { nameRegion } from './naming.js'
 import { findAgent, findPolity } from './world.js'
 import { expandConceptCluster } from './conceptResolvers.js'
-import { PRESENT_SHAPES, PRESENT_NAMES } from './presentArchetypes.js'
+import { PRESENT_NAMES } from './presentArchetypes.js'
 import {
   DELIBERATE_RECIPES,
   VIOLENT_RECIPES,
@@ -107,7 +107,7 @@ import {
  * @param {World} world
  * @returns {string}
  */
-function selectArchetype(rng, myth, world) {
+export function selectArchetype(rng, myth, world) {
   // [plague, schism, succession, invasion, depletion, awakening]
   const weights = [1, 1, 1, 1, 1, 1]
 
@@ -152,7 +152,7 @@ function selectArchetype(rng, myth, world) {
  * @param {string[]} flawConcepts
  * @returns {{ idx: number, score: number }[]}
  */
-function findFlawTouchedEvents(graph, world, flawConcepts) {
+export function findFlawTouchedEvents(graph, world, flawConcepts) {
   /** @type {{ idx: number, score: number }[]} */
   const touched = []
   for (let i = 0; i < world.events.length; i++) {
@@ -180,7 +180,7 @@ function findFlawTouchedEvents(graph, world, flawConcepts) {
  * @param {number} targetDepth
  * @returns {string[]}
  */
-function buildHiddenTruth(graph, rng, flawConcepts, flawTouchedEvents, events, crisisBaseConcept, targetDepth) {
+export function buildHiddenTruth(graph, rng, flawConcepts, flawTouchedEvents, events, crisisBaseConcept, targetDepth) {
   /** @type {string[]} */
   const chain = []
   const used = new Set()
@@ -253,7 +253,7 @@ function buildHiddenTruth(graph, rng, flawConcepts, flawTouchedEvents, events, c
  * @param {Set<string>} usedNames
  * @returns {Crisis}
  */
-function buildCrisis(graph, rng, shape, world, recipe, flawTouchedEvents, usedNames) {
+export function buildCrisis(graph, rng, shape, world, recipe, flawTouchedEvents, usedNames) {
   const seed = shape.crisisSeed
   const concepts = expandConceptCluster(graph, rng, seed.baseConcept, 3, 6)
 
@@ -276,7 +276,7 @@ function buildCrisis(graph, rng, shape, world, recipe, flawTouchedEvents, usedNa
 
   return {
     id: 'crisis-0',
-    name: nameRegion(graph, concepts, rng, usedNames),
+    name: nameRegion(graph, concepts, rng, { usedNames, entityType: 'event', morphemes: world.morphemes }),
     type: recipe,
     concepts,
     severity: seed.severity,
@@ -296,7 +296,7 @@ function buildCrisis(graph, rng, shape, world, recipe, flawTouchedEvents, usedNa
  * @param {Set<string>} usedNames
  * @returns {Faction[]}
  */
-function buildFactions(graph, rng, shape, world, crisis, usedNames) {
+export function buildFactions(graph, rng, shape, world, crisis, usedNames) {
   const polities = (world.politogony?.polities ?? []).filter(p => p.state !== 'fallen')
   const approaches = shape.factionApproaches
   const religions = world.hierogony?.religions ?? []
@@ -305,7 +305,7 @@ function buildFactions(graph, rng, shape, world, crisis, usedNames) {
     // Minimal fallback: two factions with no polities
     return approaches.slice(0, 2).map((approach, i) => ({
       id: `faction-${i}`,
-      name: nameRegion(graph, crisis.concepts.slice(0, 2), rng, usedNames),
+      name: nameRegion(graph, crisis.concepts.slice(0, 2), rng, { usedNames, entityType: 'polity', morphemes: world.morphemes }),
       approach,
       polityIds: [],
       religionIds: [],
@@ -406,7 +406,7 @@ function buildFactions(graph, rng, shape, world, crisis, usedNames) {
 
     factions.push({
       id: `faction-${factionCounter++}`,
-      name: nameRegion(graph, [...conceptSet].slice(0, 3), rng, usedNames),
+      name: nameRegion(graph, [...conceptSet].slice(0, 3), rng, { usedNames, entityType: 'polity', morphemes: world.morphemes }),
       approach,
       polityIds,
       religionIds: [...religionSet],
@@ -422,7 +422,7 @@ function buildFactions(graph, rng, shape, world, crisis, usedNames) {
       ?? approaches[factions.length % approaches.length]
     factions.push({
       id: `faction-${factionCounter++}`,
-      name: nameRegion(graph, crisis.concepts.slice(0, 2), rng, usedNames),
+      name: nameRegion(graph, crisis.concepts.slice(0, 2), rng, { usedNames, entityType: 'polity', morphemes: world.morphemes }),
       approach: unusedApproach,
       polityIds: [],
       religionIds: [],
@@ -445,7 +445,7 @@ function buildFactions(graph, rng, shape, world, crisis, usedNames) {
  * @param {Set<string>} usedNames
  * @returns {RecentEvent}
  */
-function buildRecentEvent(graph, rng, shape, world, crisis, usedNames) {
+export function buildRecentEvent(graph, rng, shape, world, crisis, usedNames) {
   const type = shape.recentEventType
   /** @type {string[]} */
   const involvedEntityIds = []
@@ -535,7 +535,7 @@ function buildRecentEvent(graph, rng, shape, world, crisis, usedNames) {
 
   return {
     id: 'recent-event-0',
-    name: nameRegion(graph, concepts, rng, usedNames),
+    name: nameRegion(graph, concepts, rng, { usedNames, entityType: 'event', morphemes: world.morphemes }),
     type,
     concepts,
     involvedEntityIds,
@@ -551,7 +551,7 @@ function buildRecentEvent(graph, rng, shape, world, crisis, usedNames) {
  * @param {Faction[]} factions
  * @returns {ActivePower[]}
  */
-function buildActivePowers(graph, world, crisis, factions) {
+export function buildActivePowers(graph, world, crisis, factions) {
   /** @type {ActivePower[]} */
   const powers = []
 
@@ -724,7 +724,7 @@ function negateVerb(verb) {
  * @param {Crisis} crisis
  * @returns {Rumor[]}
  */
-function buildRumors(graph, rng, shape, world, crisis) {
+export function buildRumors(graph, rng, shape, world, crisis) {
   const pool = buildEntityPool(world)
   if (pool.length === 0) return []
 
@@ -813,7 +813,7 @@ function buildRumors(graph, rng, shape, world, crisis) {
  * @param {Faction[]} factions
  * @param {ActivePower[]} activePowers
  */
-function applyMutations(world, crisis, factions, activePowers) {
+export function applyMutations(world, crisis, factions, activePowers) {
   // Regions get crisisImpact
   const regions = world.chorogony?.regions ?? []
   for (const region of regions) {
@@ -843,61 +843,3 @@ function applyMutations(world, crisis, factions, activePowers) {
   }
 }
 
-// ── Main entry ──
-
-/**
- * Generate the present state and write it into the world.
- * @param {ConceptGraph} graph
- * @param {World} world
- * @param {() => number} rng
- */
-export function generatePresent(graph, world, rng) {
-  const myth = /** @type {CreationMyth} */ (world.myth)
-  const usedNames = new Set()
-
-  // 1. Select archetype
-  const recipe = selectArchetype(rng, myth, world)
-  const shapeFn = PRESENT_SHAPES[recipe]
-
-  // 2. Run shape function
-  const shape = shapeFn({ graph, rng, myth, world })
-
-  // 3. Find flaw-touched events
-  const flawConcepts = myth.flaw.concepts
-  const flawTouchedEvents = findFlawTouchedEvents(graph, world, flawConcepts)
-
-  // 4. Build hidden truth chain
-  const hiddenTruth = buildHiddenTruth(
-    graph, rng, flawConcepts, flawTouchedEvents,
-    world.events, shape.crisisSeed.baseConcept, shape.hiddenTruthDepth
-  )
-
-  // 5. Build crisis
-  const crisis = buildCrisis(graph, rng, shape, world, recipe, flawTouchedEvents, usedNames)
-
-  // 6. Build factions
-  const factions = buildFactions(graph, rng, shape, world, crisis, usedNames)
-
-  // 7. Build recent event
-  const recentEvent = buildRecentEvent(graph, rng, shape, world, crisis, usedNames)
-
-  // 8. Build active powers
-  const activePowers = buildActivePowers(graph, world, crisis, factions)
-
-  // 9. Build rumors
-  const rumors = buildRumors(graph, rng, shape, world, crisis)
-
-  // 10. Apply mutations
-  applyMutations(world, crisis, factions, activePowers)
-
-  // 11. Set world.present
-  world.present = {
-    recipe,
-    crisis,
-    factions,
-    recentEvent,
-    rumors,
-    activePowers,
-    hiddenTruth,
-  }
-}

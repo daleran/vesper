@@ -10,7 +10,6 @@
  */
 import { findAgent } from '../world.js'
 import { conceptOverlap } from '../utils.js'
-import { TRIPLES, buildGraph } from '../concepts.js'
 
 /**
  * @typedef {{
@@ -24,26 +23,13 @@ import { TRIPLES, buildGraph } from '../concepts.js'
  * }} Scene
  */
 
-/** @type {ConceptGraph|null} */
-let _graphCache = null
-
-/**
- * Get the concept graph (cached).
- * @returns {ConceptGraph}
- */
-function getGraph() {
-  if (!_graphCache) {
-    _graphCache = buildGraph(TRIPLES)
-  }
-  return _graphCache
-}
-
 /**
  * Build a scene graph from world data.
  * @param {World} world
+ * @param {ConceptGraph} graph
  * @returns {Map<string, Scene>}
  */
-export function buildSceneGraph(world) {
+export function buildSceneGraph(world, graph) {
   /** @type {Map<string, Scene>} */
   const scenes = new Map()
   const regions = world.chorogony?.regions ?? []
@@ -113,7 +99,6 @@ export function buildSceneGraph(world) {
   }
 
   // Ensure connectivity: connect any isolated regions to the nearest by concept overlap
-  const graph = getGraph()
   for (const region of regions) {
     const scene = /** @type {Scene} */ (scenes.get(region.id))
     const regionConnections = scene.connections.filter(id => scenes.get(id)?.type === 'region')

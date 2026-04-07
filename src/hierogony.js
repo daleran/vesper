@@ -14,6 +14,7 @@ import { weightedPick, conceptOverlap } from './utils.js'
 import { walkFrom } from './walker.js'
 import { nameRegion } from './naming.js'
 import { findAgent } from './world.js'
+import { DELIBERATE_RECIPES, CYCLIC_RECIPES, THREAT_RECIPES } from './archetypeSelection.js'
 import { HIEROGONY_SHAPES, HIEROGONY_NAMES } from './hierogonyArchetypes.js'
 
 // ── Typedefs ──
@@ -116,10 +117,6 @@ function findNearby(graph, mythConcepts, targetConcepts, max) {
 
 // ── Archetype selection ──
 
-const DELIBERATE_RECIPES = new Set(['solo-god', 'weaving', 'utterance'])
-const CYCLIC_RECIPES = new Set(['cycle', 'dream'])
-const THREAT_RECIPES = new Set(['corruption', 'contagion'])
-
 /**
  * Select a hierogony archetype using weighted signals.
  * @param {() => number} rng
@@ -127,7 +124,7 @@ const THREAT_RECIPES = new Set(['corruption', 'contagion'])
  * @param {World} world
  * @returns {string}
  */
-function selectArchetype(rng, myth, world) {
+export function selectArchetype(rng, myth, world) {
   // [revelation, tradition, mystery, gratitude, fear, schism]
   const weights = [1, 1, 1, 1, 1, 1]
 
@@ -195,7 +192,7 @@ export function generateHierogony(graph, world, rng) {
     })
     const conceptCluster = [...new Set(chain.path)].slice(0, 6)
 
-    const name = nameRegion(graph, conceptCluster, rng, usedNames)
+    const name = nameRegion(graph, conceptCluster, rng, { usedNames, entityType: 'sacred', morphemes: world.morphemes })
 
     // Find worshipped agents: start with seed's agent, add others with domain overlap
     /** @type {string[]} */
@@ -288,7 +285,7 @@ export function generateHierogony(graph, world, rng) {
     const largest = [...finalReligions].sort((a, b) => b.peoples.length - a.peoples.length)[0]
     if (largest) {
       const heresyConcepts = [...shape.heresySeed.denyConcepts, ...shape.heresySeed.claimConcepts]
-      const heresyName = nameRegion(graph, heresyConcepts, rng, usedNames)
+      const heresyName = nameRegion(graph, heresyConcepts, rng, { usedNames, entityType: 'sacred', morphemes: world.morphemes })
 
       heresies.push({
         id: `heresy-${heresyCounter++}`,
@@ -321,7 +318,7 @@ export function generateHierogony(graph, world, rng) {
     if (!targetReligion) continue
 
     const heresyConcepts = [dispute, ...claims]
-    const heresyName = nameRegion(graph, heresyConcepts, rng, usedNames)
+    const heresyName = nameRegion(graph, heresyConcepts, rng, { usedNames, entityType: 'sacred', morphemes: world.morphemes })
 
     heresies.push({
       id: `heresy-${heresyCounter++}`,
@@ -364,7 +361,7 @@ export function generateHierogony(graph, world, rng) {
         ...religion.concepts.slice(0, 2),
         ...bestLandmark.concepts.slice(0, 2),
       ]
-      const siteName = nameRegion(graph, siteConcepts, rng, usedNames)
+      const siteName = nameRegion(graph, siteConcepts, rng, { usedNames, entityType: 'place', morphemes: world.morphemes })
 
       sacredSites.push({
         id: `sacred-site-${siteCounter++}`,
@@ -407,7 +404,7 @@ export function generateHierogony(graph, world, rng) {
       const existing = practices.filter(p => p.religionId === religion.id && p.type === type)
       if (existing.some(p => p.concepts[0] === nearby[0])) continue
 
-      const practiceName = nameRegion(graph, nearby, rng, usedNames)
+      const practiceName = nameRegion(graph, nearby, rng, { usedNames, entityType: 'sacred', morphemes: world.morphemes })
 
       practices.push({
         id: `practice-${practiceCounter++}`,

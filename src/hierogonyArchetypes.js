@@ -402,11 +402,6 @@ function schism(ctx) {
 
 // ── Registry ──
 
-/** @type {string[]} */
-export const HIEROGONY_NAMES = [
-  'revelation', 'tradition', 'mystery', 'gratitude', 'fear', 'schism',
-]
-
 /** @type {Record<string, (ctx: HierogonyContext) => HierogonyShape>} */
 export const HIEROGONY_SHAPES = {
   revelation,
@@ -416,3 +411,6 @@ export const HIEROGONY_SHAPES = {
   fear,
   schism,
 }
+
+/** @type {string[]} */
+export const HIEROGONY_NAMES = Object.keys(HIEROGONY_SHAPES)

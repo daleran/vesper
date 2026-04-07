@@ -193,7 +193,7 @@ export function generateAnthropogony(graph, world, rng) {
     const physicalTraits = resolvePhysicalTraits(graph, conceptCluster)
 
     // Name
-    const name = nameRegion(graph, conceptCluster, rng, usedNames)
+    const name = nameRegion(graph, conceptCluster, rng, { usedNames, entityType: 'people', morphemes: world.morphemes })
 
     // Resolve agent names for display
     const creatorAgent = seed.creatorAgentId
@@ -253,7 +253,7 @@ export function generateAnthropogony(graph, world, rng) {
       const remembers = findNearby(graph, [...myth.act.concepts, ...myth.cost.concepts], conceptCluster, 2)
       const fears = findNearby(graph, [...myth.flaw.concepts, ...myth.bad], conceptCluster, 2)
       const physicalTraits = resolvePhysicalTraits(graph, conceptCluster)
-      const name = nameRegion(graph, conceptCluster, rng, usedNames)
+      const name = nameRegion(graph, conceptCluster, rng, { usedNames, entityType: 'people', morphemes: world.morphemes })
 
       peoples.push({
         id: '',
