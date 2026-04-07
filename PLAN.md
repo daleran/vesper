@@ -491,9 +491,9 @@ Small tweaks and bug fixes. Add when found, remove when resolved.
 
 ### Phase 37 — Artifact Generator
 
-- [ ] `src/artifacts.js` — generateArtifacts(graph, world, rng) → sets world.artifacts
-- [ ] Separate RNG stream: `seed + '-artifacts'`
-- [ ] Output type:
+- [x] `src/artifacts.js` — generateArtifacts(graph, world, rng) → sets world.artifacts
+- [x] Separate RNG stream: `seed + '-artifacts'`
+- [x] Output type:
   ```
   Artifact {
     id, name,
@@ -510,26 +510,26 @@ Small tweaks and bug fixes. Add when found, remove when resolved.
     condition:     intact | damaged | fragmentary | corrupted | transformed,
     location: {
       regionId:    string,
-      landmarkId:  string | null,
+      landmarkName: string | null,
       status:      enshrined | buried | carried | lost | scattered,
     },
   }
   ```
-- [ ] 8–20 artifacts per world, count scaled by event count and region count
-- [ ] At least 1 from cosmogony (the creation tool or the cost remnant)
-- [ ] At least 1 per sacrifice event (sacrifice always produces a relic)
-- [ ] At least 1 per region (every region has something to find)
-- [ ] Four artifact sources:
+- [x] 8–20 artifacts per world, count scaled by event count and region count
+- [x] At least 1 from cosmogony (the creation tool or the cost remnant)
+- [x] At least 1 per sacrifice event (sacrifice always produces a relic)
+- [x] At least 1 per region (every region has something to find)
+- [x] Four artifact sources:
   - **Cosmogony** — objects from the creation act itself (the well, the bone, the bowl)
   - **Event** — objects produced by mythic history (war weapon, sacrifice relic, discovery find)
   - **God** — objects tied to specific agents (a god's symbol, imprisoned god's chains, dead god's bone)
   - **Regional** — objects from a region's concept cluster (obsidian blade from [obsidian, shard, wound])
-- [ ] Names via phoneme system from artifact concept tags
-- [ ] Materials from `world.geogony.materials`
-- [ ] **Mutates earlier entities:** landmarks get `artifacts[]`, sacred sites may link to artifacts, ruins contain artifacts (condition may degrade)
-- [ ] Wire into `buildWorld()` after present
-- [ ] UI: Artifacts panel with artifact cards showing origin, location, significance, condition
-- [ ] Verify: `npm run validate` passes
+- [x] Names via phoneme system from artifact concept tags
+- [x] Materials from `world.geogony.materials`
+- [x] **Mutates earlier entities:** landmarks get `artifacts[]`, sacred sites may link to artifacts, ruins contain artifacts (condition may degrade)
+- [x] Wire into `buildWorld()` after present
+- [x] UI: Artifacts panel with artifact cards showing origin, location, significance, condition
+- [x] Verify: `npm run validate` passes
 
 ---
 
@@ -537,11 +537,11 @@ Small tweaks and bug fixes. Add when found, remove when resolved.
 
 ### Phase 38 — Cross-Reference Helpers
 
-- [ ] Generalize entity lookup in `src/world.js`: `findArtifact()`, `findReligion()`, `findPolity()`, `findRuin()`
-- [ ] Ensure all entity types across all layers have stable `id` fields
-- [ ] Document the complete World shape in `world.js` typedefs
-- [ ] Verify: 40+ seeds produce valid complete worlds with no crashes
-- [ ] Verify: `npm run validate` passes
+- [x] Generalize entity lookup in `src/world.js`: `findPolity()`, `findReligion()`, `findRuin()`, `findRegion()`, `findSacredSite()`, `findFaction()`, `findLandmark()`, `findPeople()`, `findLifeform()`, `findEntity()`
+- [x] Ensure all entity types across all layers have stable `id` fields
+- [x] Document the complete World shape in `world.js` typedefs
+- [x] Verify: 50 seeds produce valid complete worlds with no crashes
+- [x] Verify: `npm run validate` passes
 
 ---
 
@@ -552,9 +552,9 @@ never modify World data, and are called by the UI — not by the generation pipe
 
 ### Phase 39 — Myth-to-Text Renderer
 
-- [ ] `src/renderers/mythTexts.js` — generateMythTexts(graph, world, rng) → MythText[]
-- [ ] Separate RNG stream: `seed + '-texts'`
-- [ ] 10–30 texts per world, distributed across 8 text types:
+- [x] `src/renderers/mythTexts.js` — generateMythTexts(graph, world, rng) → MythText[]
+- [x] Separate RNG stream: `seed + '-texts'`
+- [x] 10–30 texts per world, distributed across 8 text types:
   1. **Creation hymn** — reverent, liturgical retelling of cosmogony. Formal repetition, invocation.
   2. **Folk account** — simplified, emotional. "What grandmother told me." Concrete imagery.
   3. **Heretical teaching** — forbidden interpretation. Names different actors, assigns different blame.
@@ -563,36 +563,36 @@ never modify World data, and are called by the UI — not by the generation pipe
   6. **Prophecy** — cryptic, imagistic, pulling from flaw and return event.
   7. **Lament** — mourning for a dead or exiled god. The cultural wound of absence.
   8. **Teaching/parable** — moral story derived from mythic event. Hubris → cautionary, sacrifice → duty.
-- [ ] Voice variation: same mythic event through different perspectives produces different texts
-- [ ] Concept graph provides sensory vocabulary: fire-god texts use fire's color/sound/texture
-- [ ] Every god referenced by at least one text
-- [ ] Every major mythic event has at least two contradictory accounts
-- [ ] Texts reference artifacts by name
-- [ ] Output: `MythText { id, type, title, body, perspective, referencedAgentIds[], referencedArtifactIds[], concepts[] }`
-- [ ] Verify: `npm run validate` passes
+- [x] Voice variation: same mythic event through different perspectives produces different texts
+- [x] Concept graph provides sensory vocabulary: fire-god texts use fire's color/sound/texture
+- [x] Every god referenced by at least one text
+- [x] Every major mythic event has at least two contradictory accounts
+- [x] Texts reference artifacts by name
+- [x] Output: `MythText { id, type, title, body, perspective, referencedAgentIds[], referencedArtifactIds[], concepts[] }`
+- [x] Verify: `npm run validate` passes
 
 ### Phase 40 — Landmark Renderer
 
-- [ ] `src/renderers/landmarks.js` — renderLandmarks(graph, world, rng) → Map<string, string>
-- [ ] 1–3 paragraph description per landmark, conveying:
+- [x] `src/renderers/landmarks.js` — renderLandmarks(graph, world, rng) → Map<string, string>
+- [x] 1–3 paragraph description per landmark, conveying:
   - **What you see** — physical appearance from concept tags + sensory edges (color, texture, shape, sound)
   - **What you feel** — mood from associated event consequence/legacy
   - **What's here** — artifacts, sacred site markers, creature activity
   - **What happened** — implied, not stated. Show evidence, not story. A shattered altar implies the myth.
   - **What connects** — references to other landmarks, regions, paths
-- [ ] Sensory priority: lead with the most striking sense from concept tags
-- [ ] Verify: `npm run validate` passes
+- [x] Sensory priority: lead with the most striking sense from concept tags
+- [x] Verify: `npm run validate` passes
 
 ### Phase 41 — Region Renderer
 
-- [ ] `src/renderers/regions.js` — renderRegions(graph, world, rng) → Map<string, string>
-- [ ] 1–2 paragraph atmospheric description per region, conveying:
+- [x] `src/renderers/regions.js` — renderRegions(graph, world, rng) → Map<string, string>
+- [x] 1–2 paragraph atmospheric description per region, conveying:
   - **Terrain** — what the ground looks like, what grows, what the horizon shows
   - **Weather/atmosphere** — air, light, sounds. From climate tags + concept graph sensory edges.
   - **Mood** — emotional register from `evokes` edges on dominant concepts
   - **Wrongness** — flaw-shaped regions feel off without explaining why
   - **Cultural traces** — peoples, polity, religion presence. Architecture, markings, habitation or absence.
-- [ ] Verify: `npm run validate` passes
+- [x] Verify: `npm run validate` passes
 
 ---
 
@@ -604,9 +604,9 @@ the mythology, both discover it together.
 
 ### Phase 42 — Character Story Generator
 
-- [ ] `src/character.js` — generateCharacter(graph, world, rng) → sets world.character
-- [ ] Separate RNG stream: `seed + '-character'`
-- [ ] Output type:
+- [x] `src/character.js` — generateCharacter(graph, world, rng) → sets world.character
+- [x] Separate RNG stream: `seed + '-character'`
+- [x] Output type:
   ```
   PlayerCharacter {
     creatorGod:    string,          // agent id of the god who made/sent the player
@@ -634,16 +634,16 @@ the mythology, both discover it together.
     },
   }
   ```
-- [ ] Step 1: Choose creator god — prefer active gods with unresolved tensions, gods who lost something in history, gods whose domains relate to the crisis
-- [ ] Step 2: Purpose from creator god's situation — corrupted→heal, lost war→find artifact, rival gaining→prevent, dying→witness, betrayed→destroy
-- [ ] Step 3: Concept tags (2-4) from creator god's domains
-- [ ] Step 4: Arrival location for thematic resonance — far from purpose target if "find", near threat if "prevent", neutral crossroads if "witness"
-- [ ] Step 5: Appearance from creator god concept tags filtered through sensory edges
-- [ ] Step 6: World reactions from concept overlap between character and other entities
-- [ ] **Mutates earlier entities:** arrival region/landmark get `playerArrival: true`
-- [ ] Wire into `buildWorld()` as the absolute last generation step
-- [ ] UI: Character panel with creator god (clickable), purpose (debug only), arrival, appearance, instincts, reactions
-- [ ] Verify: `npm run validate` passes
+- [x] Step 1: Choose creator god — prefer active gods with unresolved tensions, gods who lost something in history, gods whose domains relate to the crisis
+- [x] Step 2: Purpose from creator god's situation — corrupted→heal, lost war→find artifact, rival gaining→prevent, dying→witness, betrayed→destroy
+- [x] Step 3: Concept tags (2-4) from creator god's domains
+- [x] Step 4: Arrival location for thematic resonance — far from purpose target if "find", near threat if "prevent", neutral crossroads if "witness"
+- [x] Step 5: Appearance from creator god concept tags filtered through sensory edges
+- [x] Step 6: World reactions from concept overlap between character and other entities
+- [x] **Mutates earlier entities:** arrival region/landmark get `playerArrival: true`
+- [x] Wire into `buildWorld()` as the absolute last generation step
+- [x] UI: Character panel with creator god (clickable), purpose (debug only), arrival, appearance, instincts, reactions
+- [x] Verify: `npm run validate` passes
 
 ---
 

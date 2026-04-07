@@ -348,15 +348,21 @@ export function generatePolitogony(graph, world, rng) {
         polity.capitalRegionId = bestId
       }
 
-      // Collect resources from controlled regions
-      const resourceSet = new Set()
+      // Collect resources from controlled regions, capped at 8
+      const MAX_POLITY_RESOURCES = 8
+      const resourceCounts = new Map()
       for (const rid of polity.regionIds) {
         const region = regions.find(r => r.id === rid)
         if (region) {
-          for (const res of region.resources) resourceSet.add(res)
+          for (const res of region.resources) {
+            resourceCounts.set(res, (resourceCounts.get(res) ?? 0) + 1)
+          }
         }
       }
-      polity.resources = [...resourceSet]
+      polity.resources = [...resourceCounts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, MAX_POLITY_RESOURCES)
+        .map(([res]) => res)
     }
   }
 

@@ -33,9 +33,10 @@ Layer 8: The Present — what is happening right now, when the player arrives.
 - **Dev server:** `npm run dev` (Vite, hot-reload)
 - **Build:** `npm run build`
 - **Preview build:** `npm run preview`
+- **String refs:** `npm run check-strings` (cross-file string reference consistency)
 - **Lint:** `npm run lint` (ESLint)
 - **Type check:** `npm run check` (TypeScript checkJs, no emit)
-- **Both:** `npm run validate` (lint + type check)
+- **All three:** `npm run validate` (check-strings + lint + type check)
 
 ### Validate After Every Change
 
@@ -115,11 +116,18 @@ src/
   politogonyArchetypes.js — POLITOGONY_SHAPES registry: 6 power-origin archetype functions.
   present.js     — generatePresent(graph, world, rng). Sets world.present (crisis, factions, recentEvent, rumors, activePowers, hiddenTruth).
   presentArchetypes.js — PRESENT_SHAPES registry: 6 present-crisis archetype functions.
+  artifacts.js   — generateArtifacts(graph, world, rng). Sets world.artifacts (Artifact[]). No archetypes.
+  character.js   — generateCharacter(graph, world, rng). Sets world.character (PlayerCharacter). No archetypes. Runs last.
   archetypeSelection.js — Shared recipe group sets + applyRecipeBonuses() helper for layer archetype selection.
   conceptResolvers.js — Shared concept resolution: expandConceptCluster, resolveShape, resolveSubstance, resolvePhysicalTraits.
   query.js       — Chainable concept graph query builder. query(graph).where().or().get().
   queryHelpers.js — Reusable semantic concept finders: findTool, findVoid, findArena, etc.
   ui.js          — buildControls(), displayMyth(container, world) — structured data viewer.
+  renderers/
+    sensory.js    — Shared sensory utilities: buildSensoryProfile, sensoryPhrase, moodPhrase.
+    landmarks.js  — renderLandmarks(graph, world, rng) → Map<id, prose>. 1-3 paragraph per landmark.
+    regions.js    — renderRegions(graph, world, rng) → Map<id, prose>. 1-2 paragraph per region.
+    mythTexts.js  — generateMythTexts(graph, world, rng) → MythText[]. 10-30 in-world texts across 8 types (hymn, folk, heresy, fragment, prayer, prophecy, lament, parable). Returns data; main.js assigns to world.texts.
   recipes/
     index.js       — CreationMyth/BeatRoles/MythRecipe typedefs, RECIPES registry array.
     soloGod.js     — Recipe: single god from force/element creates world from void.
@@ -140,6 +148,8 @@ src/
     contagion.js   — Recipe: contained thing escapes and spreads uncontrollably.
     mourning.js    — Recipe: world built as memorial to something that died before creation.
     taboo.js       — Recipe: forbidden act creates the world as consequence.
+scripts/
+  check-strings.js — String reference consistency linter (recipe names, archetype keys, myth.extra, agent enums, relation types).
 index.html       — App shell: header#controls + main#output. No canvas.
 css/main.css     — Dark theme, centered layout, serif typography.
 ```
@@ -235,7 +245,7 @@ All generation layers write into a single mutable `World` object (`src/world.js`
 No layer is "done" — each enriches the shared state. `createWorld(seed)` produces
 an empty shell; layers fill it sequentially.
 
-**Structure:** `seed`, `myth`, `agents[]`, `tensions[]`, `events[]`, `regions[]`, `geogony`, `biogony`, `anthropogony`, `chorogony`, `hierogony`, `politogony`, `present`.
+**Structure:** `seed`, `myth`, `agents[]`, `tensions[]`, `events[]`, `regions[]`, `geogony`, `biogony`, `anthropogony`, `chorogony`, `hierogony`, `politogony`, `present`, `artifacts`, `texts`, `renderedLandmarks`.
 
 **Agent registry:** `world.agents` is the single canonical array. All agents — whether
 from the pantheon, spawned during history, or born as landscape spirits — live here.
@@ -581,6 +591,138 @@ Each adjacent pair reachable within 2 hops on the concept graph.
 `crisisStance` (faction approach), agents get `presentAction` (active power action).
 
 **World structure:** `world.present = { recipe, crisis, factions, recentEvent, rumors, activePowers, hiddenTruth }`.
+
+---
+
+### Artifact System
+`generateArtifacts(graph, world, rng)` sets `world.artifacts` with physical objects found throughout
+the world. Uses a separate RNG stream (`seed + '-artifacts'`). Runs after present — the last generation layer.
+No archetype system: artifacts emerge from four source categories instead.
+
+**Pipeline:** Compute budget → Guaranteed cosmogony artifact → Guaranteed sacrifice-event artifacts →
+Guaranteed regional artifacts (one per region) → Fill remaining budget (god/event/regional weighted 40/30/30) →
+Apply mutations.
+
+**Budget formula:** `max(minGuaranteed, clamp(scaled, 8, 20))` where:
+- `minGuaranteed = 1 + sacrificeEvents.length + regions.length`
+- `scaled = 6 + floor(events.length * 0.5) + floor(regions.length * 0.5)`
+
+**Four artifact sources:**
+- **Cosmogony** — creation act/cost concepts. Type: tool/vessel/instrument or relic/fragment. Always `sacred`.
+- **Event** — event consequence concepts. Type driven by archetype (war→weapon, discovery→text, sacrifice→relic, etc.).
+- **God** — agent domain concepts. Type by state (dead→fragment/relic, imprisoned→instrument, active→weapon/ornament).
+- **Regional** — region concept cluster. Type/significance vary by region features (ruins→hidden/broken, sacred sites→sacred).
+
+**Artifact structure:** id, name, type (weapon/vessel/instrument/fragment/relic/tool/ornament/text),
+material (from world.geogony.materials), concepts (3-6), origin { source, eventIndex, agentId, regionId },
+significance (sacred/cursed/forgotten/disputed/hidden/broken), condition (intact/damaged/fragmentary/
+corrupted/transformed), location { regionId, landmarkName, status (enshrined/buried/carried/lost/scattered) }.
+
+**Naming:** `nameRegion(graph, concepts, rng, usedNames)` — same phoneme system as every other layer.
+
+**Condition:** Context-driven — sacred sites→intact, ruins→damaged/fragmentary, dead/forgotten gods→corrupted/fragmentary,
+cosmogony→intact/transformed.
+
+**Status:** sacred site + landmark→enshrined, active god→carried, ruin region→buried, degraded→scattered/lost.
+
+**Mutations:** Landmarks get `artifacts: string[]` (artifact ids). Sacred sites get `artifactIds: string[]`
+(enshrined artifacts at matching landmark). Ruins get `artifactIds: string[]` (buried/degraded artifacts in ruin region).
+
+**World structure:** `world.artifacts = Artifact[]`.
+
+---
+
+### Character System
+`generateCharacter(graph, world, rng)` sets `world.character` with the player's entry point into the world.
+Uses a separate RNG stream (`seed + '-character'`). Runs last — after artifacts, before renderers. No archetype system.
+
+**Pipeline:** Select creator god → Derive purpose → Pick concept tags → Select arrival → Build appearance →
+Build instincts → Build reactions → Apply mutations.
+
+**Creator god selection:** Score gods and demi-gods by state (active +3, sleeping/imprisoned/exiled +2, dead/forgotten +1),
+tension count (+2 per tension touching their domains), historical losses (+3 if event changed them to bad state),
+crisis concept overlap (raw score), worship/patron bonuses (+1 each). `weightedPick` from scored candidates.
+
+**7 purpose types** derived from creator god's situation (first match wins):
+- **heal** — god's domains overlap crisis flaw connection → target: flaw concept
+- **prevent** — rival agent stoking crisis, domains collide with creator's → target: rival agent id
+- **find** — god lost a war (state changed to sleeping/imprisoned) → target: god's artifact or flaw concept
+- **destroy** — god has `betrayed-by` relationship → target: betrayer agent id
+- **remember** — god has a dead/forgotten ward → target: ward agent id
+- **deliver** — god is patron of a polity with capital → target: capital region id
+- **witness** — fallback → target: crisis affected region id
+
+**Concept tags:** `expandConceptCluster` from first creator domain, 2-4 concepts via evokes/rhymes walk.
+
+**Arrival selection:** Purpose-specific region scoring — inverse overlap for `find`/`deliver`, rival's region for
+`prevent`, diversity + overlap for `witness`, flaw overlap for `heal`, second-best for `destroy`, event-tagged for
+`remember`. Picks best landmark by concept overlap. Description: 2-3 sentences from `buildSensoryProfile` + `moodPhrase`.
+
+**Appearance:** `buildSensoryProfile` drives normalcy (0 attributes→`indistinguishable`, 1-2→`subtly-wrong`, 3+→`visibly-other`)
+and physical details (2-4 strings mapping sense values to body features: eyes/hair for color, hands for texture, etc.).
+
+**Instincts:** 2-3 drawn-to (evokes/rhymes/is neighbors) + 1-2 uneasy-around (collides targets) formatted as prose phrases.
+
+**Reactions:** Priests (by religion alignment), commoners (by normalcy), agents (allied vs hostile by domain collision),
+artifacts (creator's relics glow/warm; rival artifacts resist).
+
+**Mutations:** Arrival region gets `playerArrival: true`. Arrival landmark gets `playerArrival: true`.
+
+**World structure:** `world.character = PlayerCharacter`.
+
+---
+
+### Landmark Renderer
+`renderLandmarks(graph, world, rng)` in `src/renderers/landmarks.js` produces a `Map<string, string>`
+mapping landmark IDs to 1–3 paragraph prose descriptions. Read-only — never mutates World data.
+Uses separate RNG stream (`seed + '-landmarks'`). Stored on `world.renderedLandmarks`.
+
+**Shared sensory utilities:** `src/renderers/sensory.js` provides `buildSensoryProfile(graph, concepts)`,
+`sensoryPhrase(sense, value)`, and `moodPhrase(rng, moods)` — reusable by future renderers.
+
+**Pipeline per landmark:** `gatherContext` (cross-references) → `composeArrival` (sensory-led physical
+description) → `composePresence` (sacred sites, artifacts, creatures) → `composeEcho` (event evidence, connections).
+
+**Sensory priority:** Leads with the rarest sense among the landmark's concepts.
+Tiebreaker: sound > color > texture > shape. Falls back to mood (evokes) if no sensory edges.
+
+**Renderer conventions:**
+- Renderers live in `src/renderers/`, never modify World data
+- Called after all generation layers in `buildWorld()`
+- Results stored on the World object for UI consumption
+- Add a `LAYER_RENDERERS` entry in `ui.js` for display
+
+**World structure:** `world.renderedLandmarks = Map<string, string>`.
+
+---
+
+### Myth-to-Text Renderer
+`generateMythTexts(graph, world, rng)` in `src/renderers/mythTexts.js` produces `MythText[]`.
+Assigned to `world.texts` by `main.js`. Does not mutate world data.
+Uses separate RNG stream (`seed + '-texts'`).
+
+**8 text types:** hymn (liturgical, 4-beat), folk (simplified, personal), heresy (forbidden reinterpretation),
+fragment (scholarly, analytical), prayer (to a specific agent), prophecy (cryptic, flaw-driven),
+lament (mourning dead/exiled god), parable (moral story from event).
+
+**Templates:** Each type has 3-5 template functions. Slots filled from: agent names+titles, concept names,
+sensory vocabulary resolved from graph edges (color/sound/texture/shape), myth beat data.
+`resolveSensory(graph, concept)` is local to mythTexts.js (not the shared sensory.js).
+
+**Budget:** `clamp(1 + pantheonAgents.length + ceil(events.length * 0.4), 10, 30)`
+
+**Guarantee phase:** 1 hymn → 1 prayer per living god → 1 lament per dead/exiled/forgotten god →
+2 contradictory texts per major event (agentChanges.length > 0) → 1 prophecy.
+
+**Validation sweep:** Ensures all pantheon agents referenced, all major events have ≥2 texts,
+at least 1 text references an artifact.
+
+**Artifact references:** Scored by `conceptOverlap(graph, textConcepts, artifact.concepts)`. Top 1-2 mentioned by name in body text.
+
+**MythText structure:** id, type, title, body, perspective (devout/skeptical/fearful/grieving/defiant/pragmatic),
+referencedAgentIds[], referencedArtifactIds[], concepts[].
+
+**World structure:** `world.texts = MythText[]`.
 
 ---
 

@@ -23,6 +23,7 @@ import { resolveShape, resolveSubstance } from './conceptResolvers.js'
 
 /**
  * @typedef {{
+ *   id: string,
  *   name: string,
  *   concepts: string[],
  *   shape: string,
@@ -33,6 +34,7 @@ import { resolveShape, resolveSubstance } from './conceptResolvers.js'
 
 /**
  * @typedef {{
+ *   id: string,
  *   name: string,
  *   concepts: string[],
  *   origin: string,
@@ -139,6 +141,7 @@ function expandTerrainSeeds(graph, rng, seeds, groundSubstance) {
     usedNames.add(name)
 
     terrains.push({
+      id: '',
       name,
       concepts: seed.concepts,
       shape,
@@ -167,6 +170,7 @@ function expandLandmarkSeeds(graph, rng, seeds) {
   for (const seed of seeds) {
     const name = nameRegion(graph, seed.concepts, rng, usedNames)
     landmarks.push({
+      id: '',
       name,
       concepts: seed.concepts,
       origin: seed.origin,
@@ -430,6 +434,7 @@ function enrichRegions(graph, rng, regions, terrains, landmarks, globalClimate, 
     const usedNames = new Set(landmarks.map(l => l.name.toLowerCase()))
     const name = nameRegion(graph, concepts, rng, usedNames)
     landmarks.push({
+      id: '',
       name,
       concepts,
       origin: 'regional',
@@ -487,6 +492,7 @@ export function generateGeogony(graph, world, rng) {
       const substance = resolveSubstance(graph, rng, [concept], shape.groundSubstance)
       const name = terrainName([concept], shape2)
       terrainTypes.push({
+        id: '',
         name,
         concepts: fresh.slice(0, 3),
         shape: shape2,
@@ -511,6 +517,7 @@ export function generateGeogony(graph, world, rng) {
       const nearby = query(graph).nearby(concept, 1).exclude(concept).get().slice(0, 2)
       const name = nameRegion(graph, [concept, ...nearby], rng, usedNames)
       landmarks.push({
+        id: '',
         name,
         concepts: [concept, ...nearby],
         origin: 'myth-echo',
@@ -533,6 +540,14 @@ export function generateGeogony(graph, world, rng) {
 
   // 9. Enrich history regions (per-region climate derived inside)
   const regionEnrichments = enrichRegions(graph, rng, world.regions, terrainTypes, landmarks, globalClimate, shape.groundSubstance)
+
+  // Assign stable IDs to all terrain types and landmarks
+  for (let i = 0; i < terrainTypes.length; i++) {
+    terrainTypes[i].id = `terrain-${i}`
+  }
+  for (let i = 0; i < landmarks.length; i++) {
+    landmarks[i].id = `landmark-${i}`
+  }
 
   world.geogony = {
     worldName,

@@ -18,6 +18,7 @@ import { expandConceptCluster } from './conceptResolvers.js'
 
 /**
  * @typedef {{
+ *   id: string,
  *   name: string,
  *   concepts: string[],
  *   terrainAffinity: string[],
@@ -215,9 +216,10 @@ export function generateBiogony(graph, world, rng) {
     const behavior = resolveBehavior(graph, seed.baseConcept, isFlawLinked)
 
     // Generate name
-    const name = nameRegion(graph, conceptCluster, rng, usedNames)
+    const name = nameRegion(graph, conceptCluster, rng, usedNames, [1, 2])
 
     lifeforms.push({
+      id: '',
       name,
       concepts: conceptCluster,
       terrainAffinity,
@@ -241,9 +243,10 @@ export function generateBiogony(graph, world, rng) {
       const conceptCluster = expandConceptCluster(graph, rng, concept)
       const terrainAffinity = resolveTerrainAffinity(graph, conceptCluster, terrainTypes)
       const behavior = resolveBehavior(graph, concept, false)
-      const name = nameRegion(graph, conceptCluster, rng, usedNames)
+      const name = nameRegion(graph, conceptCluster, rng, usedNames, [1, 2])
 
       lifeforms.push({
+        id: '',
         name,
         concepts: conceptCluster,
         terrainAffinity,
@@ -284,6 +287,11 @@ export function generateBiogony(graph, world, rng) {
     ]
     const unused = allLife.filter(c => !livingConcepts.has(c))
     if (unused.length > 0) extinctions.push(pick(rng, unused))
+  }
+
+  // Assign stable IDs to all lifeforms
+  for (let i = 0; i < finalLifeforms.length; i++) {
+    finalLifeforms[i].id = `lifeform-${i}`
   }
 
   world.biogony = {

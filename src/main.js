@@ -9,6 +9,11 @@ import { generateChorogony } from './chorogony.js'
 import { generateHierogony } from './hierogony.js'
 import { generatePolitogony } from './politogony.js'
 import { generatePresent } from './present.js'
+import { generateArtifacts } from './artifacts.js'
+import { generateCharacter } from './character.js'
+import { renderLandmarks } from './renderers/landmarks.js'
+import { renderRegions } from './renderers/regions.js'
+import { generateMythTexts } from './renderers/mythTexts.js'
 import { createWorld } from './world.js'
 import { buildControls, showEmptyState, displayMyth, displayMythBatch } from './ui.js'
 import { buildExplorer } from './explorer.js'
@@ -73,6 +78,11 @@ function buildWorld(seed, forceRecipe) {
   generateHierogony(graph, world, mulberry32(hashSeed(seed + '-hierogony')))
   generatePolitogony(graph, world, mulberry32(hashSeed(seed + '-politogony')))
   generatePresent(graph, world, mulberry32(hashSeed(seed + '-present')))
+  generateArtifacts(graph, world, mulberry32(hashSeed(seed + '-artifacts')))
+  generateCharacter(graph, world, mulberry32(hashSeed(seed + '-character')))
+  world.texts = generateMythTexts(graph, world, mulberry32(hashSeed(seed + '-texts')))
+  world.renderedLandmarks = renderLandmarks(graph, world, mulberry32(hashSeed(seed + '-landmarks')))
+  world.renderedRegions = renderRegions(graph, world, mulberry32(hashSeed(seed + '-regions')))
   return world
 }
 

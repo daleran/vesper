@@ -64,16 +64,14 @@ function pickTensionConcept(graph, rng, pool) {
  * @returns {string[]}
  */
 function collectEventConcepts(situation, action, consequence, legacy) {
-  const set = new Set([
-    ...Object.values(situation.roles),
-    ...situation.concepts,
-    ...Object.values(action.roles),
-    ...action.concepts,
-    ...Object.values(consequence.roles),
-    ...consequence.concepts,
-    ...Object.values(legacy.roles),
-    ...legacy.concepts,
-  ])
+  const set = new Set()
+  for (const beat of [situation, action, consequence, legacy]) {
+    for (const v of Object.values(beat.roles)) {
+      // Skip agent names (capitalized); keep only concept strings (lowercase)
+      if (v && v[0] === v[0].toLowerCase()) set.add(v)
+    }
+    for (const c of beat.concepts) set.add(c)
+  }
   return [...set]
 }
 

@@ -8,7 +8,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "check": "tsc --noEmit",
-    "validate": "npm run lint && npm run check"
+    "check-strings": "node scripts/check-strings.js",
+    "validate": "npm run check-strings && npm run lint && npm run check"
   },
   "devDependencies": {
     "eslint": "^10.1.0",

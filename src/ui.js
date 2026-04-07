@@ -5,8 +5,11 @@
  * @import { HierogonyData } from './hierogony.js'
  * @import { PolitogonyData } from './politogony.js'
  * @import { PresentData } from './present.js'
+ * @import { Artifact } from './artifacts.js'
+ * @import { PlayerCharacter } from './character.js'
+ * @import { MythText } from './renderers/mythTexts.js'
  */
-import { findAgent } from './world.js'
+import { findAgent, findPolity, findReligion, findRegion, findEntity } from './world.js'
 
 /**
  * @typedef {{ seed: string }} MythParams
@@ -337,118 +340,6 @@ function renderAgent(agent, world) {
 
   el.appendChild(details)
   return el
-}
-
-// ── History and Region rendering ──
-
-/**
- * Render mythic history as a timeline section.
- * @param {World} world
- * @returns {HTMLElement}
- */
-function renderHistory(world) {
-  const container = document.createElement('div')
-
-  for (const event of world.events) {
-    const card = document.createElement('div')
-    card.className = 'event-card'
-
-    const headerLine = document.createElement('div')
-    headerLine.className = 'event-header'
-
-    const badge = document.createElement('span')
-    badge.className = `badge badge--${event.archetype}`
-    badge.textContent = `${event.index}: ${event.archetype}`
-
-    headerLine.appendChild(badge)
-    card.appendChild(headerLine)
-
-    // Event beats
-    for (const [name, beat] of /** @type {[string, { roles: Record<string,string>, concepts: string[] }][]} */ ([
-      ['situation', event.situation],
-      ['action', event.action],
-      ['consequence', event.consequence],
-      ['legacy', event.legacy],
-    ])) {
-      card.appendChild(renderBeat(name, beat))
-    }
-
-    // Agent state changes
-    const changes = event.agentChanges.filter(c => c.newState || c.newType)
-    if (changes.length > 0) {
-      const changesEl = document.createElement('div')
-      changesEl.className = 'event-changes'
-      changesEl.textContent = changes.map(c => {
-        const agent = findAgent(world, c.agentId)
-        const name = agent?.name ?? '?'
-        const parts = []
-        if (c.newState) parts.push(c.newState)
-        if (c.newType) parts.push(`became ${c.newType}`)
-        return `${name}: ${parts.join(', ')}`
-      }).join(' \u00b7 ')
-      card.appendChild(changesEl)
-    }
-
-    // Spawned agents
-    const spawns = event.agentChanges.filter(c => c.spawned)
-    if (spawns.length > 0) {
-      const spawnsEl = document.createElement('div')
-      spawnsEl.className = 'event-changes'
-      spawnsEl.textContent = spawns.map(c => {
-        const domain = c.spawned?.domains[0] ?? '?'
-        const type = c.spawned?.type ?? '?'
-        return `spawned: ${domain} (${type})`
-      }).join(' \u00b7 ')
-      card.appendChild(spawnsEl)
-    }
-
-    // Region tags
-    if (event.regionTags.length > 0) {
-      const regionsEl = document.createElement('div')
-      regionsEl.className = 'event-regions'
-      const regionNames = event.regionTags.map(id => {
-        const region = world.regions.find(r => r.id === id)
-        return region?.name || id
-      })
-      regionsEl.textContent = `regions: ${regionNames.join(', ')}`
-      card.appendChild(regionsEl)
-    }
-
-    container.appendChild(card)
-  }
-
-  return container
-}
-
-/**
- * Render regions as cards.
- * @param {World} world
- * @returns {HTMLElement}
- */
-function renderRegions(world) {
-  const container = document.createElement('div')
-
-  for (const region of world.regions) {
-    const card = document.createElement('div')
-    card.className = 'region-card'
-
-    const name = document.createElement('span')
-    name.className = 'region-name'
-    name.textContent = region.name
-
-    const concepts = document.createElement('span')
-    concepts.className = 'region-concepts'
-    concepts.textContent = region.concepts.join(', ')
-
-    const taggedBy = document.createElement('span')
-    taggedBy.className = 'region-tagged-by'
-    taggedBy.textContent = `tagged by event ${region.taggedBy.join(', ')}`
-
-    card.append(name, concepts, taggedBy)
-    container.appendChild(card)
-  }
-
-  return container
 }
 
 // ── Layer 2: Geogony ──
@@ -1110,7 +1001,7 @@ function renderPolitogony(politogony, world) {
 
       // Religion
       if (polity.religionId) {
-        const religion = (world.hierogony?.religions ?? []).find(r => r.id === polity.religionId)
+        const religion = findReligion(world, polity.religionId)
         const religionRow = renderTagRow('religion', [religion?.name ?? polity.religionId])
         if (religionRow) card.appendChild(religionRow)
       }
@@ -1118,7 +1009,7 @@ function renderPolitogony(politogony, world) {
       // Regions
       if (polity.regionIds.length > 0) {
         const regionNames = polity.regionIds.map(rid => {
-          const region = (world.chorogony?.regions ?? []).find(r => r.id === rid)
+          const region = findRegion(world, rid)
           return region?.name ?? rid
         })
         const regionsRow = renderTagRow('regions', regionNames)
@@ -1239,7 +1130,7 @@ function renderPolitogony(politogony, world) {
       nameLine.append(name, formerBadge)
       card.appendChild(nameLine)
 
-      const regionObj = (world.chorogony?.regions ?? []).find(r => r.id === ruin.regionId)
+      const regionObj = findRegion(world, ruin.regionId)
       if (regionObj) {
         const regionRow = renderTagRow('region', [regionObj.name])
         if (regionRow) card.appendChild(regionRow)
@@ -1343,7 +1234,7 @@ function renderPresent(present, world) {
     // Affected regions
     if (present.crisis.affectedRegionIds.length > 0) {
       const regionNames = present.crisis.affectedRegionIds.map(rid => {
-        const region = (world.chorogony?.regions ?? []).find(r => r.id === rid)
+        const region = findRegion(world, rid)
         return region?.name ?? rid
       })
       const regionsRow = renderTagRow('affected regions', regionNames)
@@ -1390,7 +1281,7 @@ function renderPresent(present, world) {
       // Member polities
       if (faction.polityIds.length > 0) {
         const polityNames = faction.polityIds.map(id =>
-          (world.politogony?.polities ?? []).find(p => p.id === id)?.name ?? id
+          findPolity(world, id)?.name ?? id
         )
         const polityRow = renderTagRow('polities', polityNames)
         if (polityRow) card.appendChild(polityRow)
@@ -1406,7 +1297,7 @@ function renderPresent(present, world) {
       // Religions
       if (faction.religionIds.length > 0) {
         const religionNames = faction.religionIds.map(id =>
-          (world.hierogony?.religions ?? []).find(r => r.id === id)?.name ?? id
+          findReligion(world, id)?.name ?? id
         )
         const relRow = renderTagRow('religions', religionNames)
         if (relRow) card.appendChild(relRow)
@@ -1445,15 +1336,8 @@ function renderPresent(present, world) {
     // Involved entities
     if (present.recentEvent.involvedEntityIds.length > 0) {
       const entityNames = present.recentEvent.involvedEntityIds.map(id => {
-        const agent = findAgent(world, id)
-        if (agent) return agent.name
-        const polity = (world.politogony?.polities ?? []).find(p => p.id === id)
-        if (polity) return polity.name
-        const ruin = (world.politogony?.ruins ?? []).find(r => r.id === id)
-        if (ruin) return ruin.name
-        const site = (world.hierogony?.sacredSites ?? []).find(s => s.id === id)
-        if (site) return site.name
-        return id
+        const result = findEntity(world, id)
+        return result ? /** @type {*} */ (result.entity).name : id
       })
       const entRow = renderTagRow('involves', entityNames)
       if (entRow) card.appendChild(entRow)
@@ -1461,7 +1345,7 @@ function renderPresent(present, world) {
 
     // Region
     if (present.recentEvent.regionId) {
-      const region = (world.chorogony?.regions ?? []).find(r => r.id === present.recentEvent.regionId)
+      const region = findRegion(world, present.recentEvent.regionId)
       const regRow = renderTagRow('location', [region?.name ?? present.recentEvent.regionId])
       if (regRow) card.appendChild(regRow)
     }
@@ -1506,7 +1390,7 @@ function renderPresent(present, world) {
 
       // Region
       if (power.regionId) {
-        const region = (world.chorogony?.regions ?? []).find(r => r.id === power.regionId)
+        const region = findRegion(world, power.regionId)
         const regRow = renderTagRow('location', [region?.name ?? power.regionId])
         if (regRow) card.appendChild(regRow)
       }
@@ -1582,6 +1466,338 @@ function renderPresent(present, world) {
 // ── Layer registry ──
 
 /**
+ * Render artifacts as a DOM element.
+ * @param {Artifact[]} artifacts
+ * @param {World} world
+ * @returns {HTMLElement}
+ */
+function renderArtifacts(artifacts, world) {
+  const container = document.createElement('div')
+
+  for (const artifact of artifacts) {
+    const card = document.createElement('div')
+    card.className = 'region-card'
+
+    // Name line with type, significance, condition badges
+    const nameLine = document.createElement('div')
+    nameLine.className = 'agent-name-line'
+    const nameEl = document.createElement('span')
+    nameEl.className = 'region-name'
+    nameEl.textContent = artifact.name
+    const typeBadge = document.createElement('span')
+    typeBadge.className = 'badge badge--recipe'
+    typeBadge.textContent = artifact.type
+    const sigBadge = document.createElement('span')
+    sigBadge.className = 'badge badge--seed'
+    sigBadge.textContent = artifact.significance
+    const condBadge = document.createElement('span')
+    condBadge.className = 'badge'
+    condBadge.textContent = artifact.condition
+    nameLine.append(nameEl, typeBadge, sigBadge, condBadge)
+    card.appendChild(nameLine)
+
+    // Material
+    const matRow = renderTagRow('material', [artifact.material])
+    if (matRow) card.appendChild(matRow)
+
+    // Origin
+    const originParts = /** @type {string[]} */ ([artifact.origin.source])
+    if (artifact.origin.eventIndex !== null) {
+      originParts.push(`event ${artifact.origin.eventIndex}`)
+    }
+    if (artifact.origin.agentId) {
+      const agent = findAgent(world, artifact.origin.agentId)
+      if (agent) originParts.push(agent.name)
+    }
+    const originRow = renderTagRow('origin', originParts)
+    if (originRow) card.appendChild(originRow)
+
+    // Location
+    const locationParts = []
+    const region = findRegion(world, artifact.location.regionId)
+    if (region) locationParts.push(region.name)
+    if (artifact.location.landmarkName) locationParts.push(artifact.location.landmarkName)
+    locationParts.push(artifact.location.status)
+    const locRow = renderTagRow('location', locationParts)
+    if (locRow) card.appendChild(locRow)
+
+    // Concepts
+    const concepts = document.createElement('span')
+    concepts.className = 'region-concepts'
+    concepts.textContent = artifact.concepts.join(', ')
+    card.appendChild(concepts)
+
+    container.appendChild(card)
+  }
+
+  return container
+}
+
+/**
+ * Render the character panel.
+ * @param {PlayerCharacter} character
+ * @param {World} world
+ * @returns {HTMLElement}
+ */
+function renderCharacter(character, world) {
+  const container = document.createElement('div')
+  const card = document.createElement('div')
+  card.className = 'region-card'
+
+  // Header: creator god name + title
+  const nameLine = document.createElement('div')
+  nameLine.className = 'agent-name-line'
+  const creatorAgent = findAgent(world, character.creatorGod)
+  const godName = document.createElement('span')
+  godName.className = 'region-name'
+  godName.textContent = creatorAgent ? `${creatorAgent.name}, ${creatorAgent.title}` : character.creatorGod
+  const godBadge = document.createElement('span')
+  godBadge.className = 'badge badge--recipe'
+  godBadge.textContent = creatorAgent?.type ?? 'creator'
+  nameLine.append(godName, godBadge)
+  card.appendChild(nameLine)
+
+  // Arrival
+  const arrivalHeader = document.createElement('h4')
+  arrivalHeader.textContent = 'arrival'
+  card.appendChild(arrivalHeader)
+
+  const arrivalRegion = findRegion(world, character.arrival.regionId)
+  const arrivalParts = /** @type {string[]} */ ([])
+  if (arrivalRegion) arrivalParts.push(arrivalRegion.name)
+  if (character.arrival.landmarkId) {
+    const landmark = (world.geogony?.landmarks ?? []).find(l => l.id === character.arrival.landmarkId)
+    if (landmark) arrivalParts.push(landmark.name)
+  }
+  const arrivalRow = renderTagRow('location', arrivalParts)
+  if (arrivalRow) card.appendChild(arrivalRow)
+
+  const descEl = document.createElement('p')
+  descEl.className = 'landmark-prose'
+  descEl.textContent = character.arrival.description
+  card.appendChild(descEl)
+
+  // Appearance
+  const appearHeader = document.createElement('h4')
+  appearHeader.textContent = 'appearance'
+  card.appendChild(appearHeader)
+
+  const normalcyBadge = document.createElement('span')
+  normalcyBadge.className = 'badge badge--seed'
+  normalcyBadge.textContent = character.appearance.normalcy
+  card.appendChild(normalcyBadge)
+
+  if (character.appearance.details.length > 0) {
+    const detailsRow = renderTagRow('traits', character.appearance.details)
+    if (detailsRow) card.appendChild(detailsRow)
+  }
+
+  // Instincts
+  if (character.instincts.length > 0) {
+    const instHeader = document.createElement('h4')
+    instHeader.textContent = 'instincts'
+    card.appendChild(instHeader)
+    const instRow = renderTagRow('', character.instincts)
+    if (instRow) {
+      instRow.className = 'agent-details'
+      instRow.textContent = character.instincts.join('; ')
+      card.appendChild(instRow)
+    }
+  }
+
+  // Reactions
+  const reactHeader = document.createElement('h4')
+  reactHeader.textContent = 'reactions'
+  card.appendChild(reactHeader)
+  for (const [label, text] of [
+    ['priests', character.reactions.priests],
+    ['commoners', character.reactions.commoners],
+    ['agents', character.reactions.agents],
+    ['artifacts', character.reactions.artifacts],
+  ]) {
+    const row = document.createElement('div')
+    row.className = 'agent-details'
+    row.textContent = `${label}: ${text}`
+    card.appendChild(row)
+  }
+
+  // Concepts footer
+  const concepts = document.createElement('span')
+  concepts.className = 'region-concepts'
+  concepts.textContent = character.concepts.join(', ')
+  card.appendChild(concepts)
+
+  // Purpose (debug — hidden by default)
+  const purposeDetails = document.createElement('details')
+  const purposeSummary = document.createElement('summary')
+  purposeSummary.textContent = 'purpose (debug)'
+  purposeDetails.appendChild(purposeSummary)
+  const purposeRow = document.createElement('div')
+  purposeRow.className = 'agent-details'
+  const purposeEntity = findEntity(world, character.purpose.target)
+  const targetLabel = purposeEntity
+    ? /** @type {*} */ (purposeEntity.entity).name ?? character.purpose.target
+    : character.purpose.target
+  purposeRow.textContent = `${character.purpose.type}: ${targetLabel}`
+  const hiddenBadge = document.createElement('span')
+  hiddenBadge.className = 'badge'
+  hiddenBadge.textContent = 'hidden'
+  purposeRow.appendChild(hiddenBadge)
+  purposeDetails.appendChild(purposeRow)
+  card.appendChild(purposeDetails)
+
+  container.appendChild(card)
+  return container
+}
+
+/**
+ * Render landmark prose descriptions as cards.
+ * @param {World} world
+ * @returns {HTMLElement}
+ */
+function renderLandmarkDescriptions(world) {
+  const container = document.createElement('div')
+  const landmarks = world.geogony?.landmarks ?? []
+  const descriptions = /** @type {Map<string, string>} */ (world.renderedLandmarks)
+
+  for (const landmark of landmarks) {
+    const prose = descriptions.get(landmark.id)
+    if (!prose) continue
+
+    const card = document.createElement('div')
+    card.className = 'region-card'
+
+    const nameLine = document.createElement('div')
+    nameLine.className = 'agent-name-line'
+    const nameEl = document.createElement('span')
+    nameEl.className = 'region-name'
+    nameEl.textContent = landmark.name
+    nameLine.appendChild(nameEl)
+    card.appendChild(nameLine)
+
+    const proseEl = document.createElement('div')
+    proseEl.className = 'landmark-prose'
+    for (const paragraph of prose.split('\n\n')) {
+      const p = document.createElement('p')
+      p.textContent = paragraph
+      proseEl.appendChild(p)
+    }
+    card.appendChild(proseEl)
+
+    const concepts = document.createElement('span')
+    concepts.className = 'region-concepts'
+    concepts.textContent = landmark.concepts.join(', ')
+    card.appendChild(concepts)
+
+    container.appendChild(card)
+  }
+
+  return container
+}
+
+/**
+ * Render myth texts as cards.
+ * @param {MythText[]} texts
+ * @param {World} world
+ * @returns {HTMLElement}
+ */
+function renderMythTexts(texts, world) {
+  const container = document.createElement('div')
+
+  for (const text of texts) {
+    const card = document.createElement('div')
+    card.className = 'region-card'
+
+    const nameLine = document.createElement('div')
+    nameLine.className = 'agent-name-line'
+    const nameEl = document.createElement('span')
+    nameEl.className = 'region-name'
+    nameEl.textContent = text.title
+    const typeBadge = document.createElement('span')
+    typeBadge.className = 'badge badge--recipe'
+    typeBadge.textContent = text.type
+    const perspBadge = document.createElement('span')
+    perspBadge.className = 'badge badge--seed'
+    perspBadge.textContent = text.perspective
+    nameLine.append(nameEl, typeBadge, perspBadge)
+    card.appendChild(nameLine)
+
+    const bodyEl = document.createElement('p')
+    bodyEl.className = 'text-body'
+    bodyEl.textContent = text.body
+    card.appendChild(bodyEl)
+
+    if (text.referencedAgentIds.length > 0) {
+      const names = text.referencedAgentIds
+        .map(id => findAgent(world, id)?.name ?? id)
+      const row = renderTagRow('agents', names)
+      if (row) card.appendChild(row)
+    }
+
+    if (text.referencedArtifactIds.length > 0) {
+      const names = text.referencedArtifactIds
+        .map(id => (world.artifacts ?? []).find(a => a.id === id)?.name ?? id)
+      const row = renderTagRow('artifacts', names)
+      if (row) card.appendChild(row)
+    }
+
+    const concepts = document.createElement('span')
+    concepts.className = 'region-concepts'
+    concepts.textContent = text.concepts.join(', ')
+    card.appendChild(concepts)
+
+    container.appendChild(card)
+  }
+
+  return container
+}
+
+/**
+ * Render region prose descriptions as cards.
+ * @param {World} world
+ * @returns {HTMLElement}
+ */
+function renderRegionDescriptions(world) {
+  const container = document.createElement('div')
+  const regions = world.chorogony?.regions ?? []
+  const descriptions = /** @type {Map<string, string>} */ (world.renderedRegions)
+
+  for (const region of regions) {
+    const prose = descriptions.get(region.id)
+    if (!prose) continue
+
+    const card = document.createElement('div')
+    card.className = 'region-card'
+
+    const nameLine = document.createElement('div')
+    nameLine.className = 'agent-name-line'
+    const nameEl = document.createElement('span')
+    nameEl.className = 'region-name'
+    nameEl.textContent = region.name
+    nameLine.appendChild(nameEl)
+    card.appendChild(nameLine)
+
+    const proseEl = document.createElement('div')
+    proseEl.className = 'landmark-prose'
+    for (const paragraph of prose.split('\n\n')) {
+      const p = document.createElement('p')
+      p.textContent = paragraph
+      proseEl.appendChild(p)
+    }
+    card.appendChild(proseEl)
+
+    const concepts = document.createElement('span')
+    concepts.className = 'region-concepts'
+    concepts.textContent = region.concepts.join(', ')
+    card.appendChild(concepts)
+
+    container.appendChild(card)
+  }
+
+  return container
+}
+
+/**
  * @typedef {{
  *   title: string,
  *   show: (w: World) => boolean,
@@ -1647,10 +1863,34 @@ const LAYER_RENDERERS = [
     data: w => /** @type {object} */ (w.present),
   },
   {
-    title: 'History',
-    show: w => w.events.length > 0,
-    render: w => [renderHistory(w), renderRegions(w)],
-    data: w => ({ events: w.events, regions: w.regions }),
+    title: 'Artifacts',
+    show: w => w.artifacts !== null && w.artifacts.length > 0,
+    render: w => [renderArtifacts(/** @type {Artifact[]} */ (w.artifacts), w)],
+    data: w => /** @type {object} */ (w.artifacts),
+  },
+  {
+    title: 'Character',
+    show: w => w.character !== null,
+    render: w => [renderCharacter(/** @type {PlayerCharacter} */ (w.character), w)],
+    data: w => /** @type {object} */ (w.character),
+  },
+  {
+    title: 'Texts',
+    show: w => w.texts !== null && w.texts.length > 0,
+    render: w => [renderMythTexts(/** @type {MythText[]} */ (w.texts), w)],
+    data: w => /** @type {object} */ (w.texts),
+  },
+  {
+    title: 'Landmark Descriptions',
+    show: w => w.renderedLandmarks !== null && w.renderedLandmarks.size > 0,
+    render: w => [renderLandmarkDescriptions(w)],
+    data: w => Object.fromEntries(/** @type {Map<string, string>} */ (w.renderedLandmarks)),
+  },
+  {
+    title: 'Region Descriptions',
+    show: w => w.renderedRegions !== null && w.renderedRegions.size > 0,
+    render: w => [renderRegionDescriptions(w)],
+    data: w => Object.fromEntries(/** @type {Map<string, string>} */ (w.renderedRegions)),
   },
 ]
 

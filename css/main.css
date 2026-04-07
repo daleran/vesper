@@ -556,6 +556,23 @@ button.small {
   color: var(--accent-silver);
 }
 
+/* ── Landmark prose ── */
+.landmark-prose {
+  width: 100%;
+  font-family: var(--font-prose);
+  font-size: var(--text-lg);
+  line-height: 1.6;
+  color: var(--text-main);
+}
+
+.landmark-prose p {
+  margin: 0 0 var(--sp-3) 0;
+}
+
+.landmark-prose p:last-child {
+  margin-bottom: 0;
+}
+
 /* ── Concepts explorer ── */
 #explorer {
   width: 100%;

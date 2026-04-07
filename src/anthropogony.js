@@ -21,6 +21,7 @@ import { resolvePhysicalTraits, expandConceptCluster } from './conceptResolvers.
 
 /**
  * @typedef {{
+ *   id: string,
  *   name: string,
  *   concepts: string[],
  *   creatorAgent: string|null,
@@ -199,6 +200,7 @@ export function generateAnthropogony(graph, world, rng) {
     const patronAgent = seed.patronAgentId
 
     peoples.push({
+      id: '',
       name,
       concepts: conceptCluster,
       creatorAgent,
@@ -254,6 +256,7 @@ export function generateAnthropogony(graph, world, rng) {
       const name = nameRegion(graph, conceptCluster, rng, usedNames)
 
       peoples.push({
+        id: '',
         name,
         concepts: conceptCluster,
         creatorAgent: null,
@@ -307,6 +310,11 @@ export function generateAnthropogony(graph, world, rng) {
   // If no natural disputes, pick the first flaw concept
   if (disputes.length === 0 && flawPool.length > 0) {
     disputes.push(flawPool[0])
+  }
+
+  // Assign stable IDs to all peoples
+  for (let i = 0; i < finalPeoples.length; i++) {
+    finalPeoples[i].id = `people-${i}`
   }
 
   world.anthropogony = {

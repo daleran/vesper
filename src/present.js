@@ -12,7 +12,7 @@
 import { pick, weightedPick, conceptOverlap } from './utils.js'
 import { walkFrom } from './walker.js'
 import { nameRegion } from './naming.js'
-import { findAgent } from './world.js'
+import { findAgent, findPolity } from './world.js'
 import { expandConceptCluster } from './conceptResolvers.js'
 import { PRESENT_SHAPES, PRESENT_NAMES } from './presentArchetypes.js'
 import {
@@ -564,7 +564,7 @@ function buildActivePowers(graph, world, crisis, factions) {
     }
     // Also check patron agents of member polities
     for (const pid of faction.polityIds) {
-      const polity = (world.politogony?.polities ?? []).find(p => p.id === pid)
+      const polity = findPolity(world, pid)
       if (polity?.patronAgentId) {
         patronFactionMap.set(polity.patronAgentId, faction.id)
       }
@@ -606,7 +606,7 @@ function buildActivePowers(graph, world, crisis, factions) {
     // Find region where they are active
     let regionId = null
     if (agent.patronOf && agent.patronOf.length > 0) {
-      const polity = (world.politogony?.polities ?? []).find(p => p.id === agent.patronOf[0])
+      const polity = findPolity(world, agent.patronOf[0])
       regionId = polity?.capitalRegionId ?? null
     }
 
@@ -704,6 +704,18 @@ const CLAIM_VERBS = {
 }
 
 /**
+ * Negate a verb phrase for "invert" rumor distortion.
+ * @param {string} verb
+ * @returns {string}
+ */
+function negateVerb(verb) {
+  if (verb.startsWith('has ')) return verb.replace('has ', 'has not ')
+  if (verb.startsWith('was ')) return verb.replace('was ', 'was not ')
+  if (verb.startsWith('is ')) return verb.replace('is ', 'is not ')
+  return 'does not ' + verb.replace(/s$/, '')
+}
+
+/**
  * Build rumors — mix of true and false claims about world entities.
  * @param {ConceptGraph} graph
  * @param {() => number} rng
@@ -754,7 +766,7 @@ function buildRumors(graph, rng, shape, world, crisis) {
           break
         }
         case 'invert':
-          claim = `${entity.name} has not ${verb.replace(/s$/, '')} ${targetConcept}`
+          claim = `${entity.name} ${negateVerb(verb)} ${targetConcept}`
           break
         case 'exaggerate':
           claim = `${entity.name} ${verb} all ${targetConcept}`
@@ -815,7 +827,7 @@ function applyMutations(world, crisis, factions, activePowers) {
   // Polities get crisisStance
   for (const faction of factions) {
     for (const pid of faction.polityIds) {
-      const polity = (world.politogony?.polities ?? []).find(p => p.id === pid)
+      const polity = findPolity(world, pid)
       if (polity) {
         /** @type {*} */ (polity).crisisStance = faction.approach
       }

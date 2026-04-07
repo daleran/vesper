@@ -369,9 +369,10 @@ export function nameWorld(graph, myth, rng) {
  * @param {string[]} concepts - the region's concept cluster
  * @param {() => number} rng
  * @param {Set<string>} [usedNames] - names to avoid duplicating
+ * @param {[number, number]} [syllableRange] - min/max syllable count (default [2, 3])
  * @returns {string}
  */
-export function nameRegion(graph, concepts, rng, usedNames = new Set()) {
+export function nameRegion(graph, concepts, rng, usedNames = new Set(), syllableRange = [2, 3]) {
   // Resolve each concept to a sound palette key
   const keys = concepts.map(c => resolveSoundQuality(graph, c))
   const uniqueKeys = [...new Set(keys)]
@@ -382,8 +383,8 @@ export function nameRegion(graph, concepts, rng, usedNames = new Set()) {
     return count * (i === 0 ? 2 : 1)
   })
 
-  // Regions get 2-3 syllable names
-  const syllableCount = rng() < 0.5 ? 2 : 3
+  const [minSyl, maxSyl] = syllableRange
+  const syllableCount = minSyl === maxSyl ? minSyl : minSyl + Math.floor(rng() * (maxSyl - minSyl + 1))
 
   let name = ''
   for (let tries = 0; tries < 5; tries++) {
