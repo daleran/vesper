@@ -14,6 +14,7 @@
  */
 import { pick, pickN, weightedPick, conceptOverlap } from './utils.js'
 import { expandConceptCluster } from './conceptResolvers.js'
+import { TUNING } from './tuning.js'
 import { buildSensoryProfile, sensoryPhrase, moodPhrase } from './renderers/sensory.js'
 
 // ── Typedefs ──
@@ -229,7 +230,7 @@ function derivePurpose(graph, _rng, world, creatorGod) {
  */
 function pickConceptTags(graph, rng, creatorGod) {
   if (creatorGod.domains.length === 0) return []
-  const expanded = expandConceptCluster(graph, rng, creatorGod.domains[0], 2, 4)
+  const expanded = expandConceptCluster(graph, rng, creatorGod.domains[0], TUNING.characterConcepts.hops, TUNING.characterConcepts.size)
   return expanded.length >= 2 ? expanded : creatorGod.domains.slice(0, 4)
 }
 
@@ -378,6 +379,16 @@ function selectArrival(graph, rng, world, concepts, purpose) {
       region: r,
       score: conceptOverlap(graph, concepts, r.concepts),
     }))
+  }
+
+  // Strongly bias toward settlement region so the player arrives at the village
+  const settlementRegionId = world.settlement?.regionId
+  if (settlementRegionId) {
+    for (const entry of scored) {
+      if (entry.region.id === settlementRegionId) {
+        entry.score += 100
+      }
+    }
   }
 
   scored.sort((a, b) => b.score - a.score)

@@ -22,6 +22,7 @@ import {
   CYCLIC_RECIPES,
   applyRecipeBonuses,
 } from './archetypeSelection.js'
+import { TUNING, proportion } from './tuning.js'
 
 // ── Typedefs ──
 
@@ -97,18 +98,10 @@ import {
 // ── Helpers ──
 
 /** Conflict bias thresholds: minimum score to keep a conflict. */
-const CONFLICT_THRESHOLDS = /** @type {Record<string, number>} */ ({
-  high: 3,
-  medium: 5,
-  low: 7,
-})
+const CONFLICT_THRESHOLDS = /** @type {Record<string, number>} */ (TUNING.conflictThresholds)
 
 /** Alliance bias thresholds: minimum score to keep an alliance. */
-const ALLIANCE_THRESHOLDS = /** @type {Record<string, number>} */ ({
-  high: 3,
-  medium: 5,
-  low: 7,
-})
+const ALLIANCE_THRESHOLDS = /** @type {Record<string, number>} */ (TUNING.allianceThresholds)
 
 /** @type {string[]} */
 const INTERPRETATION_POOL = ['glorifies', 'denies', 'mourns', 'fears', 'claims-credit']
@@ -258,6 +251,9 @@ export function generatePolitogony(graph, world, rng) {
 
   // 4. Assign regions to non-fallen polities
   const activePolities = polities.filter(p => p.state !== 'fallen')
+  const polityPairs = activePolities.length * (activePolities.length - 1) / 2
+  const maxConflicts = proportion(polityPairs, TUNING.conflictPairRatio)
+  const maxAlliances = proportion(polityPairs, TUNING.alliancePairRatio)
 
   // Build sacred site map for scoring
   const sacredSiteReligionByRegion = new Map()
@@ -348,8 +344,8 @@ export function generatePolitogony(graph, world, rng) {
         polity.capitalRegionId = bestId
       }
 
-      // Collect resources from controlled regions, capped at 8
-      const MAX_POLITY_RESOURCES = 8
+      // Collect resources from controlled regions
+      const MAX_POLITY_RESOURCES = TUNING.maxPolityResources
       const resourceCounts = new Map()
       for (const rid of polity.regionIds) {
         const region = regions.find(r => r.id === rid)
@@ -428,9 +424,9 @@ export function generatePolitogony(graph, world, rng) {
   }
 
   for (let i = 0; i < activePolities.length; i++) {
-    if (conflicts.length >= 4) break
+    if (conflicts.length >= maxConflicts) break
     for (let j = i + 1; j < activePolities.length; j++) {
-      if (conflicts.length >= 4) break
+      if (conflicts.length >= maxConflicts) break
       const a = activePolities[i]
       const b = activePolities[j]
 
@@ -505,9 +501,9 @@ export function generatePolitogony(graph, world, rng) {
   )
 
   for (let i = 0; i < activePolities.length; i++) {
-    if (alliances.length >= 3) break
+    if (alliances.length >= maxAlliances) break
     for (let j = i + 1; j < activePolities.length; j++) {
-      if (alliances.length >= 3) break
+      if (alliances.length >= maxAlliances) break
       const a = activePolities[i]
       const b = activePolities[j]
 

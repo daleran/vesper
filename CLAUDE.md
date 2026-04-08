@@ -5,7 +5,7 @@
 Generation cascade (three ages):
 - **Setup:** Concept Graph → Graph Walk → Myth → Pantheon
 - **Age of Creation:** History → Geogony → Biogony → Anthropogony → Chorogony → Hierogony → Politogony
-- **Age of Heroes:** (hero events, legacy mutations)
+- **Age of Heroes:** (hero events, legacy mutations, settlement)
 - **Current Age:** Present → Artifacts → Character
 - **Renderers:** mythTexts, regions, landmarks, gloss (read-only, post-generation)
 
@@ -48,6 +48,9 @@ Built with: **Vite**, **Vanilla JS**, **HTML/CSS**. No canvas. No frameworks. No
 ### World Object
 Single mutable `World` in `src/world.js`. All layers write into it sequentially. `createWorld(seed)` makes the shell; layers fill it. `addAgent(world, agent, origin)` is the only way agents enter the array. `findAgent(world, id)` for lookup.
 
+### Tuning
+`src/tuning.js` — centralized generation parameters. `WORLD_SCALE` (0.5–2.0) controls overall world density. `scaled(min, max)` applies it to entity count ranges. `proportion(parentCount, ratio)` computes ratio-based limits relative to parent entity counts (e.g., heresies scale with religions, conflicts scale with polity pairs). Per-entity structural caps (e.g., terrains per region) stay fixed.
+
 ### Layer Convention
 - Each layer: `src/layerName.js` taking `(graph, world, rng)`, mutating world
 - Wire in `main.js`'s `buildWorld()` — no registration, no manifests
@@ -58,6 +61,9 @@ Single mutable `World` in `src/world.js`. All layers write into it sequentially.
 - Use `scoreEntityPlacement()` from `utils.js` for region placement
 - Add entry to `LAYER_RENDERERS` in `src/ui/legendsDetail.js`
 - RNG stream: `mulberry32(hashSeed(seed + '-layerName'))`
+
+### Settlement Layer
+`src/settlement.js` + `src/settlementArchetypes.js` — generates a village (future: other settlement types) in the player's arrival region. Produces agriculture (crops, livestock), food & drink, architecture, structures (town center, worship site), 4 NPCs with role-based dialogue, traditions, and a bar song. All derived from concept graph walks. Wired into `src/ages/heroes.js` after politogony. Renderer in `src/renderers/settlement.js` writes `world.renderedSettlement`. Game UI shows the settlement as a scene with sub-menu navigation (town center, worship site, fields, elder).
 
 ### Age Orchestrators
 `src/ages/creation.js`, `src/ages/heroes.js`, `src/ages/current.js` are orchestrator modules — not layers themselves. They take `(graph, world, seed)`, create their own RNG streams, call generation layers, and emit timeline events. Wire new layers into the appropriate age file, not into `main.js` directly.
@@ -95,7 +101,7 @@ src/
   main.js, world.js, utils.js, concepts.js
   walker.js, myth.js, query.js, queryHelpers.js
   naming.js, archetypeSelection.js, conceptResolvers.js
-  pronouns.js, timeline.js
+  pronouns.js, timeline.js, tuning.js
   pantheon.js, pantheonShapes.js
   history.js, historyArchetypes.js
   geogony.js, geogonyArchetypes.js
@@ -104,6 +110,7 @@ src/
   chorogony.js
   hierogony.js, hierogonyArchetypes.js
   politogony.js, politogonyArchetypes.js
+  settlement.js, settlementArchetypes.js
   present.js, presentArchetypes.js
   artifacts.js, character.js
   ages/
@@ -119,7 +126,7 @@ src/
       character.js, mythTexts.js, landmarkDescriptions.js,
       regionDescriptions.js
   renderers/
-    sensory.js, gloss.js, landmarks.js, regions.js, mythTexts.js
+    sensory.js, gloss.js, landmarks.js, regions.js, mythTexts.js, settlement.js
   recipes/
     index.js, soloGod.js, pantheonWar.js, worldBirth.js,
     sacrifice.js, splitting.js, accident.js, cycle.js,

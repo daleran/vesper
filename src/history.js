@@ -16,6 +16,7 @@ import { nameAgents, nameRegion } from './naming.js'
 import { addAgent } from './world.js'
 import { assignPronouns } from './pronouns.js'
 import { ARCHETYPES, ARCHETYPE_NAMES } from './historyArchetypes.js'
+import { TUNING } from './tuning.js'
 
 // ── Typedefs ──
 
@@ -96,8 +97,9 @@ export function generateHistory(graph, world, rng) {
   // Deduplicate
   const conceptSet = new Set(inheritedConcepts)
 
-  // Determine event count: 5-8
-  const eventCount = 5 + Math.floor(rng() * 4)
+  // Determine event count
+  const { min: minEvents, max: maxEvents } = TUNING.historyEvents
+  const eventCount = minEvents + Math.floor(rng() * (maxEvents - minEvents + 1))
 
   // Pick archetype sequence (no repeats)
   const archetypeSequence = pickArchetypeSequence(rng, eventCount)
@@ -136,7 +138,7 @@ export function generateHistory(graph, world, rng) {
       const existingRegions = world.regions.filter(r => !newRegions.includes(r))
       const target = pick(rng, existingRegions)
       // Add some of the event's concepts to the existing region
-      const toAdd = event.concepts.slice(0, 3).filter(c => !target.concepts.includes(c))
+      const toAdd = event.concepts.slice(0, TUNING.historyConceptsPerEvent).filter(c => !target.concepts.includes(c))
       target.concepts.push(...toAdd)
       target.taggedBy.push(i)
       if (!event.regionTags.includes(target.id)) {

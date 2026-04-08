@@ -12,8 +12,9 @@
 import { generateArtifacts } from '../artifacts.js'
 import { generateCharacter } from '../character.js'
 import { generateMythTexts } from '../renderers/mythTexts.js'
-import { renderLandmarks } from '../renderers/landmarks.js'
-import { renderRegions } from '../renderers/regions.js'
+import { renderOneLandmark, renderLandmarks } from '../renderers/landmarks.js'
+import { renderOneRegion, renderRegions } from '../renderers/regions.js'
+import { renderSettlement } from '../renderers/settlement.js'
 import { mulberry32, hashSeed } from '../utils.js'
 import {
   addEvent,
@@ -88,7 +89,20 @@ function emitPresentEvents(world, epochStart) {
 
   let epoch = epochStart
 
-  // crisis-emerges
+  // crisis-emerges — regions gain crisisImpact
+  /** @type {import('../timeline.js').EntityMutation[]} */
+  const crisisMutations = []
+  const affectedRegionIds = present.crisis.affectedRegionIds ?? []
+  for (let i = 0; i < affectedRegionIds.length; i++) {
+    crisisMutations.push({
+      entityId: affectedRegionIds[i],
+      entityType: 'region',
+      field: 'crisisImpact',
+      value: i === 0 ? 'epicenter' : 'affected',
+      previousValue: null,
+    })
+  }
+
   addEvent(timeline, {
     id: uId(epoch++),
     age: 'current',
@@ -97,14 +111,28 @@ function emitPresentEvents(world, epochStart) {
     beats: emptyBeats(),
     concepts: present.crisis.concepts,
     participants: [],
-    mutations: [],
+    mutations: crisisMutations,
     spawns: [{ entityType: 'crisis', entityData: present.crisis, assignedId: present.crisis.id }],
     causedBy: [],
     tags: ['crisis'],
   })
 
-  // faction-forms (one event covering all factions)
+  // faction-forms — polities gain crisisStance
   if (present.factions.length > 0) {
+    /** @type {import('../timeline.js').EntityMutation[]} */
+    const factionMutations = []
+    for (const faction of present.factions) {
+      for (const polityId of faction.polityIds) {
+        factionMutations.push({
+          entityId: polityId,
+          entityType: 'polity',
+          field: 'crisisStance',
+          value: faction.approach,
+          previousValue: null,
+        })
+      }
+    }
+
     addEvent(timeline, {
       id: uId(epoch++),
       age: 'current',
@@ -113,7 +141,7 @@ function emitPresentEvents(world, epochStart) {
       beats: emptyBeats(),
       concepts: present.factions.flatMap(f => f.concepts).slice(0, 6),
       participants: /** @type {string[]} */ (present.factions.map(f => f.leaderAgentId).filter(Boolean)),
-      mutations: [],
+      mutations: factionMutations,
       spawns: present.factions.map(f => ({ entityType: 'faction', entityData: f, assignedId: f.id })),
       causedBy: [uId(epoch - 2)],  // caused by crisis
       tags: ['political', 'faction'],
@@ -131,14 +159,15 @@ function emitPresentEvents(world, epochStart) {
       concepts: present.recentEvent.concepts,
       participants: present.recentEvent.involvedEntityIds,
       mutations: [],
-      spawns: [],
+      spawns: [{ entityType: 'recentEvent', entityData: present.recentEvent, assignedId: present.recentEvent.id ?? `recent-event-0` }],
       causedBy: [uId(epoch - 3)],
       tags: ['crisis', 'event'],
     })
   }
 
   // rumor-spreads (one event per rumor)
-  for (const rumor of present.rumors) {
+  for (let i = 0; i < present.rumors.length; i++) {
+    const rumor = present.rumors[i]
     addEvent(timeline, {
       id: uId(epoch++),
       age: 'current',
@@ -148,7 +177,7 @@ function emitPresentEvents(world, epochStart) {
       concepts: rumor.concepts,
       participants: rumor.referencedEntityId ? [rumor.referencedEntityId] : [],
       mutations: [],
-      spawns: [],
+      spawns: [{ entityType: 'rumor', entityData: rumor, assignedId: rumor.id ?? `rumor-${i}` }],
       causedBy: [],
       tags: ['rumor'],
     })
@@ -205,6 +234,116 @@ function emitCharacterEvent(world, epoch) {
   })
 }
 
+/**
+ * Emit a present-established summary event.
+ * @param {World} world
+ * @param {number} epoch
+ * @returns {number} next free epoch
+ */
+function emitPresentEstablished(world, epoch) {
+  const timeline = /** @type {import('../timeline.js').Timeline} */ (world.timeline)
+  const present = world.present
+  if (!present) return epoch
+
+  const summary = {
+    recipe: present.recipe,
+    hiddenTruth: present.hiddenTruth,
+  }
+
+  addEvent(timeline, {
+    id: uId(epoch),
+    age: 'current',
+    epoch,
+    archetype: 'present-established',
+    beats: emptyBeats(),
+    concepts: present.hiddenTruth ?? [],
+    participants: [],
+    mutations: [],
+    spawns: [{ entityType: 'present-summary', entityData: summary, assignedId: 'present-0' }],
+    causedBy: [],
+    tags: ['crisis', 'meta'],
+  })
+  return epoch + 1
+}
+
+// ── Prose logging ──
+
+/**
+ * Find the latest event that spawned or mutated an entity.
+ * @param {import('../timeline.js').Timeline} timeline
+ * @param {string} entityId
+ * @returns {string | null}
+ */
+function findLatestEventForEntity(timeline, entityId) {
+  for (let i = timeline.events.length - 1; i >= 0; i--) {
+    const evt = timeline.events[i]
+    if (evt.spawns.some(s => s.assignedId === entityId)) return evt.id
+    if (evt.mutations.some(m => m.entityId === entityId)) return evt.id
+  }
+  return null
+}
+
+/**
+ * Re-render landmarks that have artifacts placed at them, keying prose
+ * to the artifact-placed event.
+ * @param {ConceptGraph} graph
+ * @param {World} world
+ * @param {string} seed
+ */
+function logLandmarkProseForArtifacts(graph, world, seed) {
+  const timeline = /** @type {import('../timeline.js').Timeline} */ (world.timeline)
+  const rng = mulberry32(hashSeed(seed + '-landmark-prose-' + timeline.events.length))
+  const landmarks = world.geogony?.landmarks ?? []
+  const artifacts = world.artifacts ?? []
+
+  // Build set of landmark names that have artifacts
+  const landmarkNamesWithArtifacts = new Set(artifacts.map(a => a.location.landmarkName))
+
+  for (const landmark of landmarks) {
+    if (!landmarkNamesWithArtifacts.has(landmark.name)) continue
+    const prose = renderOneLandmark(graph, rng, world, landmark)
+    // Find the artifact-placed event for an artifact at this landmark
+    const artifact = artifacts.find(a => a.location.landmarkName === landmark.name)
+    const eventId = artifact
+      ? findEventForSpawn(timeline, artifact.id)
+      : findLatestEventForEntity(timeline, landmark.id)
+    if (eventId) {
+      world.proseLog.push({ eventId, entityId: landmark.id, type: 'landmark', prose })
+    }
+  }
+}
+
+/**
+ * Find the event that spawned an entity.
+ * @param {import('../timeline.js').Timeline} timeline
+ * @param {string} entityId
+ * @returns {string | null}
+ */
+function findEventForSpawn(timeline, entityId) {
+  for (const evt of timeline.events) {
+    if (evt.spawns.some(s => s.assignedId === entityId)) return evt.id
+  }
+  return null
+}
+
+/**
+ * Render and log prose for all regions at the current world state.
+ * @param {ConceptGraph} graph
+ * @param {World} world
+ * @param {string} seed
+ */
+function logRegionProse(graph, world, seed) {
+  const timeline = /** @type {import('../timeline.js').Timeline} */ (world.timeline)
+  const rng = mulberry32(hashSeed(seed + '-region-prose-' + timeline.events.length))
+  for (const region of (world.chorogony?.regions ?? [])) {
+    const prose = renderOneRegion(graph, rng, world, region)
+    const eventId = findLatestEventForEntity(timeline, region.id)
+    if (eventId) {
+      world.proseLog.push({ eventId, entityId: region.id, type: 'region', prose })
+    }
+  }
+}
+
 // ── Main entry ──
 
 /**
@@ -226,6 +365,9 @@ export function simulateCurrentAge(graph, world, seed) {
   generateArtifacts(graph, world, mulberry32(hashSeed(seed + '-artifacts')))
   let epoch = emitArtifactEvents(world, 0)
 
+  // Re-render landmarks that have artifacts placed at them
+  logLandmarkProseForArtifacts(graph, world, seed)
+
   // ── 2. Present (call helpers in sequence, same as generatePresent) ──
   const presentRng = mulberry32(hashSeed(seed + '-present'))
   const usedNames = new Set()
@@ -246,15 +388,22 @@ export function simulateCurrentAge(graph, world, seed) {
   applyMutations(world, crisis, factions, activePowers)
 
   world.present = { recipe, crisis, factions, recentEvent, rumors, activePowers, hiddenTruth }
+
+  // present-established summary
+  epoch = emitPresentEstablished(world, epoch)
   epoch = emitPresentEvents(world, epoch)
+
+  // Re-render regions after crisis impacts applied
+  logRegionProse(graph, world, seed)
 
   // ── 3. Character ──
   generateCharacter(graph, world, mulberry32(hashSeed(seed + '-character')))
   emitCharacterEvent(world, epoch)
   epoch++
 
-  // ── 4. Renderers (not events) ──
+  // ── 4. Renderers (prose lives with entity creation, not as separate events) ──
   world.texts = generateMythTexts(graph, world, mulberry32(hashSeed(seed + '-texts')))
   world.renderedLandmarks = renderLandmarks(graph, world, mulberry32(hashSeed(seed + '-landmarks')))
   world.renderedRegions = renderRegions(graph, world, mulberry32(hashSeed(seed + '-regions')))
+  renderSettlement(graph, world, mulberry32(hashSeed(seed + '-settlement-prose')))
 }

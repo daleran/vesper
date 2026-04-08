@@ -4,7 +4,7 @@ import { createTimeline } from './timeline.js'
 import { simulateCreation } from './ages/creation.js'
 import { simulateHeroAge } from './ages/heroes.js'
 import { simulateCurrentAge } from './ages/current.js'
-import { buildControls, showEmptyState, displayWorld, displayMythBatch, displayGame } from './ui/index.js'
+import { buildControls, showEmptyState, displayGenerationLog, displayGame } from './ui/index.js'
 import { buildExplorer } from './explorer.js'
 import { mulberry32, hashSeed, pick } from './utils.js'
 import { query } from './query.js'
@@ -29,10 +29,10 @@ const explorer = /** @type {HTMLElement} */ (document.getElementById('explorer')
 let currentWorld = null
 
 /**
- * @param {'world'|'game'|'concepts'} tab
+ * @param {'log'|'game'|'concepts'} tab
  */
 function switchTab(tab) {
-  controls.hidden = tab !== 'world'
+  controls.hidden = tab !== 'log'
   output.hidden = false
   explorer.hidden = tab !== 'concepts'
   if (tab === 'concepts') output.hidden = true
@@ -47,11 +47,17 @@ function switchTab(tab) {
     } else {
       showEmptyState(output)
     }
+  } else if (tab === 'log') {
+    if (currentWorld) {
+      displayGenerationLog(output, currentWorld)
+    } else {
+      showEmptyState(output)
+    }
   }
 }
 
 for (const [id, label] of /** @type {[string, string][]} */ ([
-  ['world', 'world'],
+  ['log', 'log'],
   ['game', 'game'],
   ['concepts', 'concepts'],
 ])) {
@@ -59,11 +65,11 @@ for (const [id, label] of /** @type {[string, string][]} */ ([
   btn.className = 'tab-btn'
   btn.dataset['tab'] = id
   btn.textContent = label
-  btn.addEventListener('click', () => switchTab(/** @type {'world'|'game'|'concepts'} */ (id)))
+  btn.addEventListener('click', () => switchTab(/** @type {'log'|'game'|'concepts'} */ (id)))
   tabsEl.appendChild(btn)
 }
 
-switchTab('world')
+switchTab('log')
 
 // ── Generate tab ──
 /**
@@ -85,7 +91,7 @@ const ui = buildControls(controls, ({ seed }) => {
   const world = buildWorld(seed)
   currentWorld = world
   window.location.hash = `seed=${encodeURIComponent(seed)}`
-  displayWorld(output, world)
+  displayGenerationLog(output, world)
 }, (count) => {
   // Build recipe schedule: one of each, then random fills for even distribution
   const recipeNames = RECIPES.map(r => r.name)
@@ -107,7 +113,11 @@ const ui = buildControls(controls, ({ seed }) => {
     const seed = Math.random().toString(36).slice(2, 10)
     worlds.push(buildWorld(seed, schedule[i]))
   }
-  displayMythBatch(output, worlds)
+  // For batch mode, just show the first world's log
+  if (worlds.length > 0) {
+    currentWorld = worlds[0]
+    displayGenerationLog(output, worlds[0])
+  }
 })
 
 // ── Seed permalink: auto-generate from URL hash ──
@@ -117,7 +127,7 @@ if (hashSeedValue) {
   ui.setSeed(hashSeedValue)
   const world = buildWorld(hashSeedValue)
   currentWorld = world
-  displayWorld(output, world)
+  displayGenerationLog(output, world)
 } else {
   showEmptyState(output)
 }

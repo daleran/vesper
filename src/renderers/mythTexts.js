@@ -354,7 +354,7 @@ const PRAYER_TEMPLATES = [
     const sen = resolveSensory(graph, d1)
     const flawC = agent.disposition ?? 'the wound'
     ctx.gloss.namedAgents.add(agent.id)
-    return `${agent.name}, ${agent.title},\nyou who hold ${g(ctx, d1)} and know ${g(ctx, d2)}:\nkeep ${articleFor(flawC)} from the ${sen.texture} places.\nLet ${sen.color} be the color of your returning.`
+    return `${agent.name}, ${agent.title},\nyou who hold ${d1} and know ${d2}:\nkeep ${articleFor(flawC)} from the ${sen.texture} places.\nLet ${sen.color} be the color of your returning.`
   },
   // Gratitude offering
   (ctx, agent) => {
@@ -363,7 +363,7 @@ const PRAYER_TEMPLATES = [
     const sen = resolveSensory(graph, d1)
     const flawC = agent.disposition ?? 'the wound'
     ctx.gloss.namedAgents.add(agent.id)
-    return `We give ${sen.texture} things to you, ${agent.name}, ${agent.title} — you who are ${g(ctx, d1)}.\nWe burn ${sen.color} offerings. We mark the threshold in ${soundAsRitual(sen.sound)}.\nBecause you remain. Because ${articleFor(flawC)} has not taken you yet.`
+    return `We give ${sen.texture} things to you, ${agent.name}, ${agent.title} — you who are ${d1}.\nWe burn ${sen.color} offerings. We mark the threshold in ${soundAsRitual(sen.sound)}.\nBecause you remain. Because ${articleFor(flawC)} has not taken you yet.`
   },
   // Double-naming
   (ctx, agent) => {
@@ -373,7 +373,7 @@ const PRAYER_TEMPLATES = [
     const sen = resolveSensory(graph, d1)
     const flawC = agent.disposition ?? 'the darkness'
     ctx.gloss.namedAgents.add(agent.id)
-    return `Your name in the old tongue is ${agent.name}. Your name in ours is ${agent.title}.\nWe name you ${g(ctx, d1)}. We name you ${g(ctx, d2)}.\nDo not let ${articleFor(flawC)} find our ${soundAsRitual(sen.sound)}.`
+    return `Your name in the old tongue is ${agent.name}. Your name in ours is ${agent.title}.\nWe name you ${d1}. We name you ${d2}.\nDo not let ${articleFor(flawC)} find our ${soundAsRitual(sen.sound)}.`
   },
 ]
 
@@ -422,8 +422,9 @@ const LAMENT_TEMPLATES = [
     const flawC = myth.flaw.concepts[0] ?? 'the wound'
     const pro = getPronouns(agent)
     const landmark = agent.state === 'exiled' ? 'the edge of things' : 'the old place'
-    ctx.gloss.namedAgents.add(agent.id)
-    return `O ${agent.name}, ${agent.title}, you who were ${g(ctx, d1)} and ${g(ctx, d2)}:\nwhere is the ${sen.color} of ${pro.possessive} passing?\nWe left ${g(ctx, costC)} at ${landmark} but ${pro.subject} did not return.\n${cap(g(ctx, flawC))} fills the shape where ${pro.subject} ${pro.subject === 'they' ? 'were' : 'was'}.`
+    // Laments stay focused on the subject — suppress agent glossing
+    for (const a of ctx.world.agents) ctx.gloss.namedAgents.add(a.id)
+    return `O ${agent.name}, ${agent.title}, you who were ${d1} and ${d2}:\nwhere is the ${sen.color} of ${pro.possessive} passing?\nWe left ${articleFor(costC)} at ${landmark} but ${pro.subject} did not return.\n${cap(articleFor(flawC))} fills the shape where ${pro.subject} ${pro.subject === 'they' ? 'were' : 'was'}.`
   },
   // The world was different
   (ctx, agent) => {
@@ -432,8 +433,9 @@ const LAMENT_TEMPLATES = [
     const sen = resolveSensory(graph, d1)
     const d2 = agent.domains[1] ?? d1
     const pro = getPronouns(agent)
-    ctx.gloss.namedAgents.add(agent.id)
-    return `The world was ${sen.texture} when ${agent.name} was in it.\nNow the ${sen.color} has gone out.\nWe have ${g(ctx, d1)}. We have ${sen.sound}.\nWe do not have ${agent.name}.\nWe do not have ${g(ctx, d2)}.\n${cap(pro.subject)} left, and ${pro.possessive} absence is a ${sen.shape} we cannot fill.`
+    // Laments stay focused on the subject — suppress agent glossing
+    for (const a of ctx.world.agents) ctx.gloss.namedAgents.add(a.id)
+    return `The world was ${sen.texture} when ${agent.name} was in it.\nNow the ${sen.color} has gone out.\nWe have ${d1}. We have ${sen.sound}.\nWe do not have ${agent.name}.\nWe do not have ${d2}.\n${cap(pro.subject)} left, and ${pro.possessive} absence is a ${sen.shape} we cannot fill.`
   },
 ]
 
@@ -476,10 +478,11 @@ const PARABLE_TEMPLATES = [
     const senConseq = resolveSensory(graph, conseqC)
     const agent = world.agents.find(a => event.agentChanges.some(c => c.agentId === a.id))
     const agentName = agent ? ref(agent, 'subject', ctx.gloss) : 'a stranger'
+    const pro = agent ? getPronouns(agent) : { subject: 'they' }
     const landmark = world.geogony?.landmarks.find(l => l.regionId && world.regions.some(r => r.id === l.regionId && r.taggedBy.includes(event.index)))
     const landmarkName = landmark?.name ?? 'the crossroads'
     const people = world.anthropogony?.peoples[0]?.name ?? 'the old people'
-    return `An old one of ${people} tells of seeing ${agentName} at ${landmarkName}. ${cap(agentName)} was gathering ${g(ctx, actC)} in ${senConseq.texture} handfuls. When asked what for, the answer was: "${cap(g(ctx, conseqC))} must be fed, or it feeds on us." The old one does not speak of it now, but the ${senConseq.color} stain at ${landmarkName} has not faded.`
+    return `An old one of ${people} tells of seeing ${agentName} at ${landmarkName}. ${cap(pro.subject)} was gathering ${g(ctx, actC)} in ${senConseq.texture} handfuls. When asked what for, the answer was: "${cap(g(ctx, conseqC))} must be fed, or it feeds on us." The old one does not speak of it now, but the ${senConseq.color} stain at ${landmarkName} has not faded.`
   },
   // Forbidden act scaffold — taboo, mythic origin, physical consequence
   (ctx, event) => {

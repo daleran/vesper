@@ -13,6 +13,7 @@ import { nameRegion } from './naming.js'
 import { BIOGONY_SHAPES, BIOGONY_NAMES } from './biogonyArchetypes.js'
 import { DELIBERATE_RECIPES, ORGANIC_RECIPES, CYCLIC_RECIPES, applyRecipeBonuses } from './archetypeSelection.js'
 import { expandConceptCluster } from './conceptResolvers.js'
+import { TUNING, proportion } from './tuning.js'
 
 // ── Typedefs ──
 
@@ -228,8 +229,8 @@ export function generateBiogony(graph, world, rng) {
     })
   }
 
-  // 4. Fill to 8 if we have fewer
-  if (lifeforms.length < 8) {
+  // 4. Fill to min if we have fewer
+  if (lifeforms.length < TUNING.lifeforms.min) {
     const allLife = [
       ...query(graph).where('is', 'fauna').get(),
       ...query(graph).where('is', 'flora').get(),
@@ -237,7 +238,7 @@ export function generateBiogony(graph, world, rng) {
     const available = allLife.filter(c => !usedBaseConcepts.has(c))
 
     for (const concept of available) {
-      if (lifeforms.length >= 10) break
+      if (lifeforms.length >= TUNING.lifeforms.min + 2) break
       usedBaseConcepts.add(concept)
 
       const conceptCluster = expandConceptCluster(graph, rng, concept)
@@ -256,8 +257,8 @@ export function generateBiogony(graph, world, rng) {
     }
   }
 
-  // Cap at 12
-  const finalLifeforms = lifeforms.slice(0, 12)
+  // Cap at max
+  const finalLifeforms = lifeforms.slice(0, TUNING.lifeforms.max)
 
   // 5. Identify flaw life (subset of lifeforms whose base concept was flaw-linked)
   const flawLife = finalLifeforms.filter(
@@ -275,9 +276,10 @@ export function generateBiogony(graph, world, rng) {
 
   // 6. Extinctions (must not overlap living lifeforms)
   const livingConcepts = new Set(finalLifeforms.map(lf => lf.concepts[0]))
+  const maxExtinctions = proportion(finalLifeforms.length, TUNING.extinctionRatio)
   const extinctions = shape.extinctionConcepts
     .filter(c => !livingConcepts.has(c))
-    .slice(0, 3)
+    .slice(0, maxExtinctions)
 
   // Ensure at least 1 extinction
   if (extinctions.length === 0) {

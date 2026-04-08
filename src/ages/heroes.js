@@ -13,7 +13,10 @@
 import { generateChorogony } from '../chorogony.js'
 import { generateHierogony } from '../hierogony.js'
 import { generatePolitogony } from '../politogony.js'
+import { generateSettlement } from '../settlement.js'
 import { mulberry32, hashSeed } from '../utils.js'
+import { renderOneLandmark } from '../renderers/landmarks.js'
+import { renderOneRegion } from '../renderers/regions.js'
 import {
   addEvent,
   advanceAge,
@@ -100,16 +103,27 @@ function emitReligionEvents(world, regionEventIds, epochStart) {
       beats: emptyBeats(),
       concepts: religion.concepts,
       participants: religion.worshippedAgents,
-      mutations: /** @type {import('../timeline.js').EntityMutation[]} */ (religion.peoples.map(peopleName => {
-        const person = peoples.find(p => p.name === peopleName)
-        return person ? {
-          entityId: person.id,
-          entityType: 'people',
-          field: 'religion',
+      mutations: /** @type {import('../timeline.js').EntityMutation[]} */ ([
+        // People gain a religion
+        ...religion.peoples.map(peopleName => {
+          const person = peoples.find(p => p.name === peopleName)
+          return person ? {
+            entityId: person.id,
+            entityType: 'people',
+            field: 'religion',
+            value: religion.id,
+            previousValue: null,
+          } : null
+        }).filter(Boolean),
+        // Worshipped agents gain worshippedBy
+        ...religion.worshippedAgents.map(agentId => ({
+          entityId: agentId,
+          entityType: 'agent',
+          field: 'worshippedBy',
           value: religion.id,
           previousValue: null,
-        } : null
-      }).filter(Boolean)),
+        })),
+      ]),
       spawns: [{ entityType: 'religion', entityData: religion, assignedId: religion.id }],
       causedBy,
       tags: ['religion', 'belief'],
@@ -143,6 +157,9 @@ function emitReligionEvents(world, regionEventIds, epochStart) {
     const parentId = religionEventIds.get(site.religionId)
     const regionId = regionEventIds.get(site.regionId)
     const id = hId(epoch)
+    // Find the landmark this sacred site is placed on
+    const siteLinkedLandmark = (world.geogony?.landmarks ?? []).find(l => l.name === site.landmarkName)
+
     addEvent(timeline, {
       id,
       age: 'heroes',
@@ -151,7 +168,13 @@ function emitReligionEvents(world, regionEventIds, epochStart) {
       beats: emptyBeats(),
       concepts: site.concepts,
       participants: [],
-      mutations: [],
+      mutations: siteLinkedLandmark ? [{
+        entityId: siteLinkedLandmark.id,
+        entityType: 'landmark',
+        field: 'sacredTo',
+        value: site.religionId,
+        previousValue: null,
+      }] : [],
       spawns: [{ entityType: 'sacredSite', entityData: site, assignedId: site.id }],
       causedBy: [parentId, regionId].filter(Boolean),
       tags: ['religion', 'landmark'],
@@ -196,13 +219,24 @@ function emitPolityEvents(world, regionEventIds, religionEventIds, epochStart) {
       beats: emptyBeats(),
       concepts: polity.concepts,
       participants: polity.patronAgentId ? [polity.patronAgentId] : [],
-      mutations: polity.regionIds.map(rid => ({
-        entityId: rid,
-        entityType: 'region',
-        field: 'controlledBy',
-        value: polity.id,
-        previousValue: null,
-      })),
+      mutations: [
+        // Regions gain controlledBy
+        ...polity.regionIds.map(rid => ({
+          entityId: rid,
+          entityType: 'region',
+          field: 'controlledBy',
+          value: polity.id,
+          previousValue: null,
+        })),
+        // Patron agent gains patronOf
+        ...(polity.patronAgentId ? [{
+          entityId: polity.patronAgentId,
+          entityType: 'agent',
+          field: 'patronOf',
+          value: polity.id,
+          previousValue: null,
+        }] : []),
+      ],
       spawns: [{ entityType: 'polity', entityData: polity, assignedId: polity.id }],
       causedBy: causeIds.filter(Boolean),
       tags: ['political', 'kingdom'],
@@ -321,16 +355,118 @@ export function simulateHeroAge(graph, world, seed) {
   generateChorogony(graph, world, mulberry32(hashSeed(seed + '-chorogony')))
   const regionEventIds = emitRegionEvents(world, rootCause)
 
+  // Initial region prose (no polities, ruins, or sacred sites yet)
+  logRegionProse(graph, world, seed)
+
   // ── 2. Hierogony ──
   generateHierogony(graph, world, mulberry32(hashSeed(seed + '-hierogony')))
-  const nextEpochAfterRegions = regionEventIds.size
+  let epoch = regionEventIds.size
+
+  // religions-origin summary
+  epoch = emitLayerSummary(timeline, epoch, 'religions-origin', world.hierogony, ['religion', 'meta'])
+
   const { epoch: epochAfterReligions, religionEventIds } =
-    emitReligionEvents(world, regionEventIds, nextEpochAfterRegions)
+    emitReligionEvents(world, regionEventIds, epoch)
+
+  // Re-render landmarks after sacred sites placed
+  logLandmarkProse(graph, world, seed)
 
   // ── 3. Politogony ──
   generatePolitogony(graph, world, mulberry32(hashSeed(seed + '-politogony')))
-  emitPolityEvents(world, regionEventIds, religionEventIds, epochAfterReligions)
 
-  // ── 4. Advance age ──
+  // polities-origin summary
+  const epochAfterSummary = emitLayerSummary(timeline, epochAfterReligions, 'polities-origin', world.politogony, ['political', 'meta'])
+
+  emitPolityEvents(world, regionEventIds, religionEventIds, epochAfterSummary)
+
+  // Re-render regions after polities claim them
+  logRegionProse(graph, world, seed)
+
+  // ── 4. Settlement ──
+  generateSettlement(graph, world, mulberry32(hashSeed(seed + '-settlement')))
+
+  // ── 5. Advance age ──
   advanceAge(timeline, 'current')
+}
+
+/**
+ * Emit a layer summary event (recipe + full layer data).
+ * @param {import('../timeline.js').Timeline} timeline
+ * @param {number} epoch
+ * @param {string} archetype
+ * @param {object|null} layerData
+ * @param {string[]} tags
+ * @returns {number} next free epoch
+ */
+function emitLayerSummary(timeline, epoch, archetype, layerData, tags) {
+  if (!layerData) return epoch
+  const entityType = archetype.replace(/-/g, '_')
+
+  addEvent(timeline, {
+    id: hId(epoch),
+    age: 'heroes',
+    epoch,
+    archetype,
+    beats: emptyBeats(),
+    concepts: /** @type {any} */ (layerData).recipe ? [/** @type {any} */ (layerData).recipe] : [],
+    participants: [],
+    mutations: [],
+    spawns: [{ entityType, entityData: layerData, assignedId: `${entityType}-0` }],
+    causedBy: [],
+    tags,
+  })
+  return epoch + 1
+}
+
+// ── Prose logging ──
+
+/**
+ * Find the latest event that spawned or mutated an entity.
+ * @param {import('../timeline.js').Timeline} timeline
+ * @param {string} entityId
+ * @returns {string | null}
+ */
+function findLatestEventForEntity(timeline, entityId) {
+  for (let i = timeline.events.length - 1; i >= 0; i--) {
+    const evt = timeline.events[i]
+    if (evt.spawns.some(s => s.assignedId === entityId)) return evt.id
+    if (evt.mutations.some(m => m.entityId === entityId)) return evt.id
+  }
+  return null
+}
+
+/**
+ * Render and log prose for all landmarks at the current world state.
+ * @param {ConceptGraph} graph
+ * @param {World} world
+ * @param {string} seed
+ */
+function logLandmarkProse(graph, world, seed) {
+  const timeline = /** @type {import('../timeline.js').Timeline} */ (world.timeline)
+  const rng = mulberry32(hashSeed(seed + '-landmark-prose-' + timeline.events.length))
+  for (const landmark of (world.geogony?.landmarks ?? [])) {
+    const prose = renderOneLandmark(graph, rng, world, landmark)
+    const eventId = findLatestEventForEntity(timeline, landmark.id)
+    if (eventId) {
+      world.proseLog.push({ eventId, entityId: landmark.id, type: 'landmark', prose })
+    }
+  }
+}
+
+/**
+ * Render and log prose for all regions at the current world state.
+ * @param {ConceptGraph} graph
+ * @param {World} world
+ * @param {string} seed
+ */
+function logRegionProse(graph, world, seed) {
+  const timeline = /** @type {import('../timeline.js').Timeline} */ (world.timeline)
+  const rng = mulberry32(hashSeed(seed + '-region-prose-' + timeline.events.length))
+  for (const region of (world.chorogony?.regions ?? [])) {
+    const prose = renderOneRegion(graph, rng, world, region)
+    const eventId = findLatestEventForEntity(timeline, region.id)
+    if (eventId) {
+      world.proseLog.push({ eventId, entityId: region.id, type: 'region', prose })
+    }
+  }
 }

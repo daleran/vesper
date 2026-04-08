@@ -14,7 +14,7 @@ import { conceptOverlap } from '../utils.js'
 /**
  * @typedef {{
  *   id: string,
- *   type: 'region'|'landmark',
+ *   type: 'region'|'landmark'|'settlement',
  *   name: string,
  *   regionId: string,
  *   connections: string[],
@@ -61,6 +61,31 @@ export function buildSceneGraph(world, graph) {
       prose: renderedLandmarks.get(landmark.id) ?? '',
       concepts: landmark.concepts,
     })
+  }
+
+  // Create settlement scene (if present)
+  const settlement = world.settlement
+  if (settlement) {
+    const rendered = /** @type {any} */ (world.renderedSettlement)
+    const settlementProse = rendered
+      ? `${rendered.landscape}\n\n${rendered.architecture}`
+      : ''
+    scenes.set(settlement.id, {
+      id: settlement.id,
+      type: 'settlement',
+      name: settlement.name,
+      regionId: settlement.regionId,
+      connections: [],
+      prose: settlementProse,
+      concepts: settlement.concepts,
+    })
+    // Connect settlement to its parent region (bidirectional)
+    const parentRegionScene = scenes.get(settlement.regionId)
+    if (parentRegionScene) {
+      parentRegionScene.connections.push(settlement.id)
+      const settlementScene = /** @type {Scene} */ (scenes.get(settlement.id))
+      settlementScene.connections.push(settlement.regionId)
+    }
   }
 
   // Connect landmarks to their parent regions (bidirectional)
@@ -263,7 +288,7 @@ export function renderScene(scene, world, sceneGraph, visitedScenes) {
     choice.className = 'choice'
     choice.dataset['sceneId'] = connId
     const visited = visitedScenes.has(connId)
-    const prefix = connScene.type === 'landmark' ? 'Approach' : 'Travel to'
+    const prefix = connScene.type === 'settlement' ? 'Approach' : connScene.type === 'landmark' ? 'Approach' : 'Travel to'
     choice.textContent = `${prefix} ${connScene.name}${visited ? '' : ' \u2022'}`
     choicesEl.appendChild(choice)
   }

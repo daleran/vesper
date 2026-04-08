@@ -18,6 +18,7 @@ import { generateBiogony } from '../biogony.js'
 import { generateAnthropogony } from '../anthropogony.js'
 import { buildMorphemeTable } from '../naming.js'
 import { mulberry32, hashSeed } from '../utils.js'
+import { renderOneLandmark } from '../renderers/landmarks.js'
 import {
   addEvent,
   advanceAge,
@@ -30,6 +31,29 @@ import {
 // ── Internal helpers ──
 
 /**
+ * Emit a myth-established event capturing the full myth object.
+ * @param {World} world
+ */
+function emitMythEstablished(world) {
+  const timeline = /** @type {import('../timeline.js').Timeline} */ (world.timeline)
+  const myth = /** @type {import('../recipes/index.js').CreationMyth} */ (world.myth)
+
+  addEvent(timeline, {
+    id: makeEventId('creation', 0, 0),
+    age: 'creation',
+    epoch: 0,
+    archetype: 'myth-established',
+    beats: emptyBeats(),
+    concepts: [...myth.before.concepts, ...myth.act.concepts, ...myth.cost.concepts, ...myth.flaw.concepts],
+    participants: myth.creators,
+    mutations: [],
+    spawns: [{ entityType: 'myth', entityData: myth, assignedId: 'myth-0' }],
+    causedBy: [],
+    tags: ['mythic', 'meta'],
+  })
+}
+
+/**
  * Emit the four creation-myth beats as WorldEvents.
  * @param {World} world
  */
@@ -37,65 +61,117 @@ function emitMythEvents(world) {
   const timeline = /** @type {import('../timeline.js').Timeline} */ (world.timeline)
   const myth = /** @type {import('../recipes/index.js').CreationMyth} */ (world.myth)
 
-  // primordial-state  (epoch 0)
+  // primordial-state  (epoch 1)
   addEvent(timeline, {
-    id: makeEventId('creation', 0, 0),
+    id: makeEventId('creation', 1, 0),
     age: 'creation',
-    epoch: 0,
+    epoch: 1,
     archetype: 'primordial-state',
     beats: { situation: myth.before, action: emptyBeat(), consequence: emptyBeat(), legacy: emptyBeat() },
     concepts: myth.before.concepts,
     participants: [],
     mutations: [],
     spawns: [],
-    causedBy: [],
+    causedBy: [makeEventId('creation', 0, 0)],
     tags: ['mythic', 'primordial'],
   })
 
-  // creation-act  (epoch 1)
+  // creation-act  (epoch 2)
   addEvent(timeline, {
-    id: makeEventId('creation', 1, 0),
+    id: makeEventId('creation', 2, 0),
     age: 'creation',
-    epoch: 1,
+    epoch: 2,
     archetype: 'creation-act',
     beats: { situation: emptyBeat(), action: myth.act, consequence: emptyBeat(), legacy: emptyBeat() },
     concepts: myth.act.concepts,
     participants: myth.creators,
     mutations: [],
     spawns: [],
-    causedBy: [makeEventId('creation', 0, 0)],
+    causedBy: [makeEventId('creation', 1, 0)],
     tags: ['mythic', 'divine'],
   })
 
-  // creation-cost  (epoch 2)
+  // creation-cost  (epoch 3)
   addEvent(timeline, {
-    id: makeEventId('creation', 2, 0),
+    id: makeEventId('creation', 3, 0),
     age: 'creation',
-    epoch: 2,
+    epoch: 3,
     archetype: 'creation-cost',
     beats: { situation: emptyBeat(), action: emptyBeat(), consequence: myth.cost, legacy: emptyBeat() },
     concepts: myth.cost.concepts,
     participants: [],
     mutations: [],
     spawns: [],
-    causedBy: [makeEventId('creation', 1, 0)],
+    causedBy: [makeEventId('creation', 2, 0)],
     tags: ['mythic'],
   })
 
-  // flaw-emergence  (epoch 3)
+  // flaw-emergence  (epoch 4)
   addEvent(timeline, {
-    id: makeEventId('creation', 3, 0),
+    id: makeEventId('creation', 4, 0),
     age: 'creation',
-    epoch: 3,
+    epoch: 4,
     archetype: 'flaw-emergence',
     beats: { situation: emptyBeat(), action: emptyBeat(), consequence: emptyBeat(), legacy: myth.flaw },
     concepts: myth.flaw.concepts,
     participants: [],
     mutations: [],
     spawns: [],
-    causedBy: [makeEventId('creation', 2, 0)],
+    causedBy: [makeEventId('creation', 3, 0)],
     tags: ['mythic', 'flaw'],
   })
+}
+
+/**
+ * Emit a tensions-emerge event capturing world.tensions.
+ * @param {World} world
+ * @param {number} epoch
+ * @returns {number} next free epoch
+ */
+function emitTensionsEvent(world, epoch) {
+  const timeline = /** @type {import('../timeline.js').Timeline} */ (world.timeline)
+  if (world.tensions.length === 0) return epoch
+
+  addEvent(timeline, {
+    id: makeEventId('creation', epoch, 0),
+    age: 'creation',
+    epoch,
+    archetype: 'tensions-emerge',
+    beats: emptyBeats(),
+    concepts: world.tensions,
+    participants: [],
+    mutations: [],
+    spawns: [{ entityType: 'tensions', entityData: { tensions: world.tensions }, assignedId: 'tensions-0' }],
+    causedBy: [makeEventId('creation', 2, 0)],  // caused by creation-act
+    tags: ['mythic', 'meta'],
+  })
+  return epoch + 1
+}
+
+/**
+ * Emit a language-established event capturing morpheme table.
+ * @param {World} world
+ * @param {number} epoch
+ * @returns {number} next free epoch
+ */
+function emitLanguageEvent(world, epoch) {
+  const timeline = /** @type {import('../timeline.js').Timeline} */ (world.timeline)
+  if (!world.morphemes) return epoch
+
+  addEvent(timeline, {
+    id: makeEventId('creation', epoch, 0),
+    age: 'creation',
+    epoch,
+    archetype: 'language-established',
+    beats: emptyBeats(),
+    concepts: [],
+    participants: [],
+    mutations: [],
+    spawns: [{ entityType: 'morphemes', entityData: world.morphemes, assignedId: 'morphemes-0' }],
+    causedBy: [makeEventId('creation', 0, 0)],  // caused by myth
+    tags: ['meta', 'language'],
+  })
+  return epoch + 1
 }
 
 /**
@@ -107,7 +183,7 @@ function emitMythEvents(world) {
 function emitPantheonEvents(world, epochStart) {
   const timeline = /** @type {import('../timeline.js').Timeline} */ (world.timeline)
   let epoch = epochStart
-  const creationActId = makeEventId('creation', 1, 0)
+  const creationActId = makeEventId('creation', 2, 0)
 
   const pantheonAgents = world.agents.filter(a => a.origin === 'pantheon')
 
@@ -147,7 +223,7 @@ function emitPantheonEvents(world, epochStart) {
         participants: [agent.id, rel.target],
         mutations: [],
         spawns: [],
-        causedBy: [makeEventId('creation', 1, 0)],
+        causedBy: [makeEventId('creation', 2, 0)],
         tags: ['divine', 'relationship'],
       })
       epoch++
@@ -165,7 +241,7 @@ function emitPantheonEvents(world, epochStart) {
  */
 function emitHistoryEvents(world, epochStart) {
   const timeline = /** @type {import('../timeline.js').Timeline} */ (world.timeline)
-  const flawEventId = makeEventId('creation', 3, 0)
+  const flawEventId = makeEventId('creation', 4, 0)
   let epoch = epochStart
 
   for (let i = 0; i < world.events.length; i++) {
@@ -193,6 +269,45 @@ function emitHistoryEvents(world, epochStart) {
   }
 
   return epoch
+}
+
+/**
+ * Emit a world-formed summary event capturing geogony metadata.
+ * @param {World} world
+ * @param {number} epoch
+ * @returns {number} next free epoch
+ */
+function emitWorldFormedEvent(world, epoch) {
+  const timeline = /** @type {import('../timeline.js').Timeline} */ (world.timeline)
+  const geogony = world.geogony
+  if (!geogony) return epoch
+
+  const summary = {
+    worldName: geogony.worldName,
+    recipe: geogony.recipe,
+    worldShape: geogony.worldShape,
+    groundSubstance: geogony.groundSubstance,
+    waterSubstance: geogony.waterSubstance,
+    skySubstance: geogony.skySubstance,
+    materials: geogony.materials,
+    climate: geogony.climate,
+    regionEnrichments: geogony.regionEnrichments,
+  }
+
+  addEvent(timeline, {
+    id: makeEventId('creation', epoch, 0),
+    age: 'creation',
+    epoch,
+    archetype: 'world-formed',
+    beats: emptyBeats(),
+    concepts: [...geogony.materials, ...geogony.climate].slice(0, 10),
+    participants: geogony.causingAgentId ? [geogony.causingAgentId] : [],
+    mutations: [],
+    spawns: [{ entityType: 'geogony-summary', entityData: summary, assignedId: 'geogony-0' }],
+    causedBy: [makeEventId('creation', 2, 0)],  // caused by creation-act
+    tags: ['natural', 'meta'],
+  })
+  return epoch + 1
 }
 
 /**
@@ -226,7 +341,7 @@ function emitGeogonyEvents(world, epochStart) {
     participants: geogony.causingAgentId ? [geogony.causingAgentId] : [],
     mutations: [],
     spawns: terrainSpawns,
-    causedBy: [makeEventId('creation', 1, 0)],  // caused by creation-act
+    causedBy: [makeEventId('creation', 2, 0)],  // caused by creation-act
     tags: ['natural', 'formation'],
   })
   epoch++
@@ -272,6 +387,39 @@ function emitGeogonyEvents(world, epochStart) {
 }
 
 /**
+ * Emit a life-origin summary event capturing biogony metadata.
+ * @param {World} world
+ * @param {number} epoch
+ * @returns {number} next free epoch
+ */
+function emitLifeOriginEvent(world, epoch) {
+  const timeline = /** @type {import('../timeline.js').Timeline} */ (world.timeline)
+  const biogony = world.biogony
+  if (!biogony) return epoch
+
+  const summary = {
+    recipe: biogony.recipe,
+    lifeOriginAgent: biogony.lifeOriginAgent,
+    extinctions: biogony.extinctions,
+  }
+
+  addEvent(timeline, {
+    id: makeEventId('creation', epoch, 0),
+    age: 'creation',
+    epoch,
+    archetype: 'life-origin',
+    beats: emptyBeats(),
+    concepts: biogony.extinctions,
+    participants: biogony.lifeOriginAgent ? [biogony.lifeOriginAgent] : [],
+    mutations: [],
+    spawns: [{ entityType: 'biogony-summary', entityData: summary, assignedId: 'biogony-0' }],
+    causedBy: [makeEventId('creation', 2, 0)],
+    tags: ['natural', 'life', 'meta'],
+  })
+  return epoch + 1
+}
+
+/**
  * Emit WorldEvents for biogony results (life-emerges, flaw-life).
  * @param {World} world
  * @param {number} epochStart
@@ -283,8 +431,8 @@ function emitBiogonyEvents(world, epochStart) {
   if (!biogony) return epochStart
 
   let epoch = epochStart
-  const creationActId = makeEventId('creation', 1, 0)
-  const flawId = makeEventId('creation', 3, 0)
+  const creationActId = makeEventId('creation', 2, 0)
+  const flawId = makeEventId('creation', 4, 0)
   const flawLifeNames = new Set(biogony.flawLife.map(l => l.name))
 
   for (const lifeform of biogony.lifeforms) {
@@ -309,6 +457,39 @@ function emitBiogonyEvents(world, epochStart) {
 }
 
 /**
+ * Emit a peoples-origin summary event capturing anthropogony metadata.
+ * @param {World} world
+ * @param {number} epoch
+ * @returns {number} next free epoch
+ */
+function emitPeoplesOriginEvent(world, epoch) {
+  const timeline = /** @type {import('../timeline.js').Timeline} */ (world.timeline)
+  const anthropogony = world.anthropogony
+  if (!anthropogony) return epoch
+
+  const summary = {
+    recipe: anthropogony.recipe,
+    commonMemory: anthropogony.commonMemory,
+    disputes: anthropogony.disputes,
+  }
+
+  addEvent(timeline, {
+    id: makeEventId('creation', epoch, 0),
+    age: 'creation',
+    epoch,
+    archetype: 'peoples-origin',
+    beats: emptyBeats(),
+    concepts: [...anthropogony.commonMemory, ...anthropogony.disputes],
+    participants: [],
+    mutations: [],
+    spawns: [{ entityType: 'anthropogony-summary', entityData: summary, assignedId: 'anthropogony-0' }],
+    causedBy: [makeEventId('creation', 2, 0)],
+    tags: ['people', 'meta'],
+  })
+  return epoch + 1
+}
+
+/**
  * Emit WorldEvents for anthropogony results (people-created).
  * @param {World} world
  * @param {number} epochStart
@@ -320,7 +501,7 @@ function emitAnthropogonyEvents(world, epochStart) {
   if (!anthropogony) return epochStart
 
   let epoch = epochStart
-  const creationActId = makeEventId('creation', 1, 0)
+  const creationActId = makeEventId('creation', 2, 0)
 
   for (const people of anthropogony.peoples) {
     const participants = []
@@ -365,32 +546,80 @@ function emitAnthropogonyEvents(world, epochStart) {
 export function simulateCreation(graph, world, seed, forceRecipe) {
   // ── 1. Myth ──
   world.myth = generateMyth(graph, seed, forceRecipe)
+  emitMythEstablished(world)
   emitMythEvents(world)
 
   // ── 2. Pantheon ──
   generatePantheon(graph, world, mulberry32(hashSeed(seed + '-pantheon')))
-  const epochAfterPantheon = emitPantheonEvents(world, 4)
+  let epoch = emitTensionsEvent(world, 5)
+  epoch = emitPantheonEvents(world, epoch)
 
-  // ── 3. Morpheme table (no event) ──
+  // ── 3. Morpheme table ──
   world.morphemes = buildMorphemeTable(graph, world.myth, mulberry32(hashSeed(seed + '-language')))
+  epoch = emitLanguageEvent(world, epoch)
 
   // ── 4. History ──
   generateHistory(graph, world, mulberry32(hashSeed(seed + '-history')))
-  const epochAfterHistory = emitHistoryEvents(world, epochAfterPantheon)
+  epoch = emitHistoryEvents(world, epoch)
 
   // ── 5. Geogony ──
   generateGeogony(graph, world, mulberry32(hashSeed(seed + '-geogony')))
-  const epochAfterGeogony = emitGeogonyEvents(world, epochAfterHistory)
+  epoch = emitWorldFormedEvent(world, epoch)
+  epoch = emitGeogonyEvents(world, epoch)
+
+  // Render initial landmark prose (no sacred sites or artifacts yet)
+  logLandmarkProse(graph, world, seed)
 
   // ── 6. Biogony ──
   generateBiogony(graph, world, mulberry32(hashSeed(seed + '-biogony')))
-  const epochAfterBiogony = emitBiogonyEvents(world, epochAfterGeogony)
+  epoch = emitLifeOriginEvent(world, epoch)
+  epoch = emitBiogonyEvents(world, epoch)
 
   // ── 7. Anthropogony ──
   generateAnthropogony(graph, world, mulberry32(hashSeed(seed + '-anthropogony')))
-  emitAnthropogonyEvents(world, epochAfterBiogony)
+  epoch = emitPeoplesOriginEvent(world, epoch)
+  emitAnthropogonyEvents(world, epoch)
 
   // ── 8. Advance age ──
   const timeline = /** @type {import('../timeline.js').Timeline} */ (world.timeline)
   advanceAge(timeline, 'heroes')
+}
+
+// ── Prose logging ──
+
+/**
+ * Render and log prose for all landmarks at the current world state.
+ * Matches each landmark to its most recent spawn/mutation event.
+ * @param {ConceptGraph} graph
+ * @param {World} world
+ * @param {string} seed
+ */
+function logLandmarkProse(graph, world, seed) {
+  const timeline = /** @type {import('../timeline.js').Timeline} */ (world.timeline)
+  const rng = mulberry32(hashSeed(seed + '-landmark-prose-' + timeline.events.length))
+  const landmarks = world.geogony?.landmarks ?? []
+
+  for (const landmark of landmarks) {
+    const prose = renderOneLandmark(graph, rng, world, landmark)
+    // Find the latest event that spawned or mutated this landmark
+    const eventId = findLatestEventForEntity(timeline, landmark.id)
+    if (eventId) {
+      world.proseLog.push({ eventId, entityId: landmark.id, type: 'landmark', prose })
+    }
+  }
+}
+
+/**
+ * Find the latest event that spawned or mutated an entity.
+ * @param {import('../timeline.js').Timeline} timeline
+ * @param {string} entityId
+ * @returns {string | null}
+ */
+function findLatestEventForEntity(timeline, entityId) {
+  for (let i = timeline.events.length - 1; i >= 0; i--) {
+    const evt = timeline.events[i]
+    if (evt.spawns.some(s => s.assignedId === entityId)) return evt.id
+    if (evt.mutations.some(m => m.entityId === entityId)) return evt.id
+  }
+  return null
 }

@@ -8,6 +8,7 @@
 import { pick } from './utils.js'
 import { query } from './query.js'
 import { walkFrom } from './walker.js'
+import { TUNING } from './tuning.js'
 
 // ── Concept cluster expansion ──
 
@@ -20,7 +21,7 @@ import { walkFrom } from './walker.js'
  * @param {number} [maxSize=4]
  * @returns {string[]}
  */
-export function expandConceptCluster(graph, rng, baseConcept, maxHops = 2, maxSize = 4) {
+export function expandConceptCluster(graph, rng, baseConcept, maxHops = TUNING.defaultCluster.hops, maxSize = TUNING.defaultCluster.size) {
   const chain = walkFrom(graph, rng, baseConcept, maxHops, {
     preferRelations: ['evokes', 'rhymes'],
   })

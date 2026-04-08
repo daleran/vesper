@@ -32,6 +32,7 @@
  */
 
 import { pick, weightedPick } from './utils.js'
+import { TUNING } from './tuning.js'
 
 // ── Phoneme palettes keyed by sound-edge targets ──
 
@@ -188,7 +189,7 @@ export function buildWorldSignature(graph, myth) {
   }
 
   const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1])
-  const top = sorted.slice(0, 3)
+  const top = sorted.slice(0, TUNING.topPalettes)
 
   return {
     palettes: top.map(([k]) => k),
@@ -213,7 +214,7 @@ const TERRAIN_SHAPES = [
  * @returns {string}
  */
 function generateMorpheme(rng, palette, wantCoda, used) {
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < TUNING.maxMorphemeAttempts; i++) {
     const onset = pick(rng, palette.onsets)
     const vowel = pick(rng, palette.vowels)
     const coda = wantCoda ? pick(rng, palette.codas) : ''

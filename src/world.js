@@ -17,6 +17,7 @@
  * @import { MythText } from './renderers/mythTexts.js'
  * @import { MorphemeTable } from './naming.js'
  * @import { Timeline } from './timeline.js'
+ * @import { Settlement } from './settlement.js'
  */
 
 // ── Typedefs ──
@@ -79,13 +80,16 @@
  *   hierogony: HierogonyData | null,
  *   politogony: PolitogonyData | null,
  *   present: PresentData | null,
+ *   settlement: Settlement | null,
  *   artifacts: Artifact[] | null,
  *   character: PlayerCharacter | null,
  *   texts: MythText[] | null,
  *   morphemes: MorphemeTable | null,
  *   renderedLandmarks: Map<string, string> | null,
  *   renderedRegions: Map<string, string> | null,
+ *   renderedSettlement: object | null,
  *   timeline: Timeline | null,
+ *   proseLog: Array<{ eventId: string, entityId: string, type: string, prose: string }>,
  * }} World
  */
 
@@ -112,13 +116,16 @@ export function createWorld(seed) {
     hierogony: null,
     politogony: null,
     present: null,
+    settlement: null,
     artifacts: null,
     character: null,
     texts: null,
     morphemes: null,
     renderedLandmarks: null,
     renderedRegions: null,
+    renderedSettlement: null,
     timeline: null,
+    proseLog: [],
   }
 }
 

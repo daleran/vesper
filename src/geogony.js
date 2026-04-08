@@ -18,6 +18,7 @@ import { addAgent } from './world.js'
 import { assignPronouns } from './pronouns.js'
 import { GEOGONY_SHAPES, GEOGONY_NAMES } from './geogonyArchetypes.js'
 import { VIOLENT_RECIPES, ORGANIC_RECIPES, SPREADING_RECIPES, DELIBERATE_RECIPES, applyRecipeBonuses } from './archetypeSelection.js'
+import { TUNING } from './tuning.js'
 import { resolveShape, resolveSubstance } from './conceptResolvers.js'
 
 // ── Typedefs ──
@@ -201,7 +202,7 @@ function expandLandmarkSeeds(graph, rng, seeds, morphemes) {
  * @returns {string[]}
  */
 function deriveGlobalClimate(graph, rng, myth) {
-  const chain = walkFrom(graph, rng, myth.worldAfter, 3, { preferRelations: ['evokes', 'rhymes'] })
+  const chain = walkFrom(graph, rng, myth.worldAfter, TUNING.climateHops, { preferRelations: ['evokes', 'rhymes'] })
   const candidates = [...new Set(chain.path)]
 
   const elementConcepts = query(graph).where('is', 'element').get()
@@ -211,7 +212,7 @@ function deriveGlobalClimate(graph, rng, myth) {
   candidates.push(...mythElements)
 
   const unique = [...new Set(candidates)]
-  const count = Math.min(unique.length, rng() < 0.5 ? 2 : 3)
+  const count = Math.min(unique.length, rng() < 0.5 ? TUNING.climateConcepts.min : TUNING.climateConcepts.max)
   return unique.slice(0, count)
 }
 
@@ -298,7 +299,7 @@ function deriveMaterials(graph, rng, ground, water, sky, terrains) {
       }
     }
   }
-  return [...materialSet].slice(0, 12)
+  return [...materialSet].slice(0, TUNING.maxMaterials)
 }
 
 // ── Landscape agents ──
@@ -318,8 +319,8 @@ function spawnLandscapeAgents(graph, rng, myth, world, ground, water, sky) {
   const spawned = []
 
   for (const substance of [ground, water, sky]) {
-    if (rng() > 0.4) continue // ~40% chance each
-    if (spawned.length >= 3) break
+    if (rng() > TUNING.landscapeAgentChance) continue
+    if (spawned.length >= TUNING.maxLandscapeAgents) break
 
     const nearby = query(graph).nearby(substance, 1).exclude(substance).get().slice(0, 2)
     /** @type {AgentSeed} */
@@ -361,7 +362,7 @@ function assignTerrains(graph, region, terrains, terrainAssignCounts) {
 
   const assignedTerrains = []
   for (const { terrain, score } of scoredTerrains) {
-    if (assignedTerrains.length >= 3) break
+    if (assignedTerrains.length >= TUNING.maxTerrainsPerRegion) break
     const count = terrainAssignCounts.get(terrain.name) ?? 0
     if (count >= 3 && score < 2 && assignedTerrains.length > 0) continue
     assignedTerrains.push(terrain.name)
@@ -509,13 +510,13 @@ export function generateGeogony(graph, world, rng) {
   // 3. Run archetype shape function
   const shape = shapeFn({ graph, rng, myth, world })
 
-  // 4. Expand terrain seeds (target 6-10)
+  // 4. Expand terrain seeds (target min-max terrains)
   let terrainTypes = expandTerrainSeeds(graph, rng, shape.terrainSeeds, shape.groundSubstance, world.morphemes)
-  // If we have fewer than 6 terrains, generate more from region concepts
-  if (terrainTypes.length < 6 && world.regions.length > 0) {
+  // If we have fewer than min terrains, generate more from region concepts
+  if (terrainTypes.length < TUNING.terrains.min && world.regions.length > 0) {
     const existingConcepts = new Set(terrainTypes.flatMap(t => t.concepts))
     for (const region of world.regions) {
-      if (terrainTypes.length >= 8) break
+      if (terrainTypes.length >= TUNING.terrains.min + 2) break
       const fresh = region.concepts.filter(c => !existingConcepts.has(c))
       if (fresh.length === 0) continue
       const concept = fresh[0]
@@ -533,18 +534,18 @@ export function generateGeogony(graph, world, rng) {
       for (const c of fresh.slice(0, 3)) existingConcepts.add(c)
     }
   }
-  terrainTypes = terrainTypes.slice(0, 10)
+  terrainTypes = terrainTypes.slice(0, TUNING.terrains.max)
 
-  // 5. Expand landmark seeds (target 4-8)
+  // 5. Expand landmark seeds (target min-max landmarks)
   let landmarks = expandLandmarkSeeds(graph, rng, shape.landmarkSeeds, world.morphemes)
-  // Fill to at least 4 from myth concepts
-  if (landmarks.length < 4) {
+  // Fill to at least min from myth concepts
+  if (landmarks.length < TUNING.landmarks.min) {
     const usedNames = new Set(landmarks.map(l => l.name.toLowerCase()))
     const mythConcepts = [...myth.important, ...myth.bad].filter(c =>
       !landmarks.some(l => l.concepts.includes(c))
     )
     for (const concept of mythConcepts) {
-      if (landmarks.length >= 6) break
+      if (landmarks.length >= TUNING.landmarks.min + 2) break
       const nearby = query(graph).nearby(concept, 1).exclude(concept).get().slice(0, 2)
       const name = nameRegion(graph, [concept, ...nearby], rng, { usedNames, entityType: 'place', morphemes: world.morphemes })
       landmarks.push({
@@ -558,7 +559,7 @@ export function generateGeogony(graph, world, rng) {
       })
     }
   }
-  landmarks = landmarks.slice(0, 8)
+  landmarks = landmarks.slice(0, TUNING.landmarks.max)
 
   // 6. Derive materials
   const materials = deriveMaterials(graph, rng, shape.groundSubstance, shape.waterSubstance, shape.skySubstance, terrainTypes)

@@ -16,6 +16,7 @@ import { nameRegion } from './naming.js'
 import { findAgent } from './world.js'
 import { DELIBERATE_RECIPES, CYCLIC_RECIPES, THREAT_RECIPES } from './archetypeSelection.js'
 import { HIEROGONY_SHAPES, HIEROGONY_NAMES } from './hierogonyArchetypes.js'
+import { TUNING, proportion } from './tuning.js'
 
 // ── Typedefs ──
 
@@ -203,7 +204,7 @@ export function generateHierogony(graph, world, rng) {
 
     for (const agent of world.agents) {
       if (worshippedAgents.includes(agent.id)) continue
-      if (worshippedAgents.length >= 3) break
+      if (worshippedAgents.length >= TUNING.maxWorshippedAgents) break
       const overlap = conceptOverlap(graph, agent.domains, conceptCluster)
       if (overlap >= 2) {
         worshippedAgents.push(agent.id)
@@ -299,9 +300,10 @@ export function generateHierogony(graph, world, rng) {
     }
   }
 
-  // Additional heresies from disputes
+  // Additional heresies from disputes — scaled to religion count
+  const maxHeresies = proportion(finalReligions.length, TUNING.heresyRatio)
   for (const dispute of disputes) {
-    if (heresies.length >= 3) break
+    if (heresies.length >= maxHeresies) break
     if (heresies.some(h => h.denies.includes(dispute))) continue
 
     const chain = walkFrom(graph, rng, dispute, 2, {

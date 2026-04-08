@@ -11,6 +11,7 @@ import { query } from './query.js'
 import { walkFrom } from './walker.js'
 import { pick } from './utils.js'
 import { assignPronouns } from './pronouns.js'
+import { TUNING } from './tuning.js'
 import { SHAPES } from './pantheonShapes.js'
 import { addAgent } from './world.js'
 
@@ -54,8 +55,8 @@ import { addAgent } from './world.js'
 
 // ── Constants ──
 
-const MIN_AGENTS = 3
-const MAX_AGENTS = 7
+const MIN_AGENTS = TUNING.pantheon.min
+const MAX_AGENTS = TUNING.pantheon.max
 
 /** State-derived participles for title generation. */
 const STATE_PARTICIPLES = /** @type {Record<string, string>} */ ({
@@ -184,7 +185,7 @@ function deriveSecondaryAgents(graph, seeds, myth, rng) {
         ? pick(rng, all).domains[0]
         : myth.worldAfter
 
-    const chain = walkFrom(graph, rng, source, 2, { preferRelations: ['collides', 'transforms'] })
+    const chain = walkFrom(graph, rng, source, TUNING.secondaryAgentHops, { preferRelations: ['collides', 'transforms'] })
     const terminal = chain.path[chain.path.length - 1]
 
     if (usedDomains.has(terminal)) continue

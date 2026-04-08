@@ -12,6 +12,7 @@ import { nameRegion } from './naming.js'
 import { ANTHROPOGONY_SHAPES, ANTHROPOGONY_NAMES } from './anthropogonyArchetypes.js'
 import { DELIBERATE_RECIPES, ORGANIC_RECIPES, CYCLIC_RECIPES, applyRecipeBonuses } from './archetypeSelection.js'
 import { resolvePhysicalTraits, expandConceptCluster } from './conceptResolvers.js'
+import { TUNING, proportion } from './tuning.js'
 
 /**
  * @import { PhysicalTraits } from './conceptResolvers.js'
@@ -156,8 +157,8 @@ export function generateAnthropogony(graph, world, rng) {
     if (usedBaseConcepts.has(seed.baseConcept)) continue
     usedBaseConcepts.add(seed.baseConcept)
 
-    // Expand concept cluster (4-6 concepts via 2-3 hop walk)
-    const conceptCluster = expandConceptCluster(graph, rng, seed.baseConcept, 3, 6)
+    // Expand concept cluster via walk
+    const conceptCluster = expandConceptCluster(graph, rng, seed.baseConcept, TUNING.peopleConcepts.hops, TUNING.peopleConcepts.size)
 
     // Purpose — force concept ranked by proximity to cluster
     const purpose = query(graph).where('is', 'force')
@@ -183,11 +184,11 @@ export function generateAnthropogony(graph, world, rng) {
 
     // Remembers — myth act/cost concepts within 1 hop
     const memoryConcepts = [...myth.act.concepts, ...myth.cost.concepts]
-    const remembers = findNearby(graph, memoryConcepts, conceptCluster, 2)
+    const remembers = findNearby(graph, memoryConcepts, conceptCluster, TUNING.maxMemoryFearConcepts)
 
     // Fears — myth flaw/bad concepts within 1 hop
     const fearConcepts = [...myth.flaw.concepts, ...myth.bad]
-    const fears = findNearby(graph, fearConcepts, conceptCluster, 2)
+    const fears = findNearby(graph, fearConcepts, conceptCluster, TUNING.maxMemoryFearConcepts)
 
     // Physical traits
     const physicalTraits = resolvePhysicalTraits(graph, conceptCluster)
@@ -217,8 +218,8 @@ export function generateAnthropogony(graph, world, rng) {
     })
   }
 
-  // 4. Fill to 3 minimum
-  if (peoples.length < 3) {
+  // 4. Fill to minimum
+  if (peoples.length < TUNING.peoples.min) {
     const materials = world.geogony?.materials ?? []
     const lifeforms = world.biogony?.lifeforms ?? []
     const fillPool = [
@@ -230,16 +231,16 @@ export function generateAnthropogony(graph, world, rng) {
     if (fillPool.length === 0) {
       const forces = query(graph).where('is', 'force')
         .exclude(...usedBaseConcepts)
-        .random(rng, 3)
+        .random(rng, TUNING.peoples.min)
       fillPool.push(...forces)
     }
 
     for (const concept of fillPool) {
-      if (peoples.length >= 3) break
+      if (peoples.length >= TUNING.peoples.min) break
       if (usedBaseConcepts.has(concept)) continue
       usedBaseConcepts.add(concept)
 
-      const conceptCluster = expandConceptCluster(graph, rng, concept, 3, 6)
+      const conceptCluster = expandConceptCluster(graph, rng, concept, TUNING.peopleConcepts.hops, TUNING.peopleConcepts.size)
 
       const purpose = query(graph).where('is', 'force')
         .exclude(...conceptCluster).rank(conceptCluster).first() ?? 'endurance'
@@ -250,8 +251,8 @@ export function generateAnthropogony(graph, world, rng) {
         ?? (flawConcepts.length > 0 ? flawConcepts[0] : 'wound')
 
       const terrainAffinity = resolveTerrainAffinity(graph, conceptCluster, terrainTypes)
-      const remembers = findNearby(graph, [...myth.act.concepts, ...myth.cost.concepts], conceptCluster, 2)
-      const fears = findNearby(graph, [...myth.flaw.concepts, ...myth.bad], conceptCluster, 2)
+      const remembers = findNearby(graph, [...myth.act.concepts, ...myth.cost.concepts], conceptCluster, TUNING.maxMemoryFearConcepts)
+      const fears = findNearby(graph, [...myth.flaw.concepts, ...myth.bad], conceptCluster, TUNING.maxMemoryFearConcepts)
       const physicalTraits = resolvePhysicalTraits(graph, conceptCluster)
       const name = nameRegion(graph, conceptCluster, rng, { usedNames, entityType: 'people', morphemes: world.morphemes })
 
@@ -274,8 +275,8 @@ export function generateAnthropogony(graph, world, rng) {
     }
   }
 
-  // Cap at 6
-  const finalPeoples = peoples.slice(0, 6)
+  // Cap at max
+  const finalPeoples = peoples.slice(0, TUNING.peoples.max)
 
   // 5. Derive common memory
   const allPeopleConcepts = finalPeoples.flatMap(p => p.concepts)
@@ -287,7 +288,7 @@ export function generateAnthropogony(graph, world, rng) {
   const commonMemory = [...conceptCounts.entries()]
     .filter(([c, count]) => count >= 2 && mythImportant.has(c))
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
+    .slice(0, proportion(finalPeoples.length, TUNING.commonMemoryRatio))
     .map(([c]) => c)
 
   // If none found, pick the most-shared myth concept
@@ -298,9 +299,10 @@ export function generateAnthropogony(graph, world, rng) {
   // 6. Derive disputes — flaw concepts that divide peoples
   /** @type {string[]} */
   const disputes = []
+  const maxDisputes = proportion(finalPeoples.length, TUNING.disputeRatio)
   const flawPool = [...myth.flaw.concepts, ...myth.bad]
   for (const fc of flawPool) {
-    if (disputes.length >= 3) break
+    if (disputes.length >= maxDisputes) break
     const inFears = finalPeoples.some(p => p.fears.includes(fc))
     const inRemembers = finalPeoples.some(p => p.remembers.includes(fc))
     if (inFears && inRemembers) {

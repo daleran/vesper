@@ -3,6 +3,7 @@
  */
 import { NARRATIVE_RELATIONS } from './concepts.js'
 import { weightedPick } from './utils.js'
+import { TUNING } from './tuning.js'
 
 /**
  * @typedef {{ path: string[], relations: string[], start: string }} ConceptChain
@@ -19,9 +20,9 @@ import { weightedPick } from './utils.js'
  * }} Paradox
  */
 
-const EDGE_WEIGHT_NARRATIVE = 3
-const EDGE_WEIGHT_DESCRIPTIVE = 1
-const EDGE_WEIGHT_PREFERRED = 5
+const EDGE_WEIGHT_NARRATIVE = TUNING.edgeWeights.narrative
+const EDGE_WEIGHT_DESCRIPTIVE = TUNING.edgeWeights.descriptive
+const EDGE_WEIGHT_PREFERRED = TUNING.edgeWeights.preferred
 
 /**
  * @typedef {{ preferRelations?: string[] }} WalkOptions

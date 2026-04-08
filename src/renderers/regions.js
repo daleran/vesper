@@ -391,6 +391,44 @@ function composeCulture(rng, ctx) {
 // ── Main entry point ──
 
 /**
+ * Render prose description for a single region.
+ * @param {ConceptGraph} graph
+ * @param {() => number} rng
+ * @param {World} world
+ * @param {ChorogonyRegion} region
+ * @returns {string}
+ */
+export function renderOneRegion(graph, rng, world, region) {
+  const ctx = gatherContext(graph, rng, world, region)
+
+  // Paragraph 1: The Land (always present)
+  const land = composeTerrain(graph, rng, ctx)
+
+  // Paragraph 2: The Feel (conditional)
+  const feelParts = []
+
+  // Mood
+  if (ctx.region.mood.length > 0) {
+    feelParts.push(moodPhrase(rng, ctx.region.mood))
+  }
+
+  // Wrongness
+  const wrongness = composeWrongness(rng, ctx)
+  if (wrongness) feelParts.push(wrongness)
+
+  // Cultural traces
+  const culture = composeCulture(rng, ctx)
+  if (culture) feelParts.push(culture)
+
+  const paragraphs = [land]
+  if (feelParts.length > 0) {
+    paragraphs.push(feelParts.join(' '))
+  }
+
+  return paragraphs.join('\n\n')
+}
+
+/**
  * Render prose descriptions for all regions in the world.
  * @param {ConceptGraph} graph
  * @param {World} world
@@ -403,33 +441,7 @@ export function renderRegions(graph, world, rng) {
 
   const regions = world.chorogony?.regions ?? []
   for (const region of regions) {
-    const ctx = gatherContext(graph, rng, world, region)
-
-    // Paragraph 1: The Land (always present)
-    const land = composeTerrain(graph, rng, ctx)
-
-    // Paragraph 2: The Feel (conditional)
-    const feelParts = []
-
-    // Mood
-    if (ctx.region.mood.length > 0) {
-      feelParts.push(moodPhrase(rng, ctx.region.mood))
-    }
-
-    // Wrongness
-    const wrongness = composeWrongness(rng, ctx)
-    if (wrongness) feelParts.push(wrongness)
-
-    // Cultural traces
-    const culture = composeCulture(rng, ctx)
-    if (culture) feelParts.push(culture)
-
-    const paragraphs = [land]
-    if (feelParts.length > 0) {
-      paragraphs.push(feelParts.join(' '))
-    }
-
-    result.set(region.id, paragraphs.join('\n\n'))
+    result.set(region.id, renderOneRegion(graph, rng, world, region))
   }
 
   return result

@@ -85,9 +85,9 @@ export function glossConcept(concept, graph, world, state) {
 
   state.glossed.add(concept)
 
-  // 2. Agent domain match
+  // 2. Agent domain match — skip if agent already named in this text
   const agent = findAgentByDomain(world, concept)
-  if (agent) {
+  if (agent && !state.namedAgents.has(agent.id)) {
     state.namedAgents.add(agent.id)
     return `${agent.name}, ${agent.title}, who was ${concept} itself`
   }
@@ -183,7 +183,7 @@ function findAgentByDomain(world, concept) {
  * @param {string} concept
  * @returns {string}
  */
-function articleFor(concept) {
+export function articleFor(concept) {
   return BARE_NOUNS.has(concept) ? concept : `the ${concept}`
 }
 

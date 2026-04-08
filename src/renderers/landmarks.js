@@ -361,6 +361,28 @@ function composeEcho(graph, rng, ctx) {
 // ── Main entry point ──
 
 /**
+ * Render prose description for a single landmark.
+ * @param {ConceptGraph} graph
+ * @param {() => number} rng
+ * @param {World} world
+ * @param {Landmark} landmark
+ * @returns {string}
+ */
+export function renderOneLandmark(graph, rng, world, landmark) {
+  const ctx = gatherContext(graph, rng, world, landmark)
+
+  const paragraphs = [composeArrival(graph, rng, ctx)]
+
+  const presence = composePresence(graph, rng, ctx)
+  if (presence) paragraphs.push(presence)
+
+  const echo = composeEcho(graph, rng, ctx)
+  if (echo) paragraphs.push(echo)
+
+  return paragraphs.join('\n\n')
+}
+
+/**
  * Render prose descriptions for all landmarks in the world.
  * @param {ConceptGraph} graph
  * @param {World} world
@@ -373,17 +395,7 @@ export function renderLandmarks(graph, world, rng) {
 
   const landmarks = world.geogony?.landmarks ?? []
   for (const landmark of landmarks) {
-    const ctx = gatherContext(graph, rng, world, landmark)
-
-    const paragraphs = [composeArrival(graph, rng, ctx)]
-
-    const presence = composePresence(graph, rng, ctx)
-    if (presence) paragraphs.push(presence)
-
-    const echo = composeEcho(graph, rng, ctx)
-    if (echo) paragraphs.push(echo)
-
-    result.set(landmark.id, paragraphs.join('\n\n'))
+    result.set(landmark.id, renderOneLandmark(graph, rng, world, landmark))
   }
 
   return result

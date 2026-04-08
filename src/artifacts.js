@@ -17,6 +17,7 @@
 import { pick, weightedPick, clamp, conceptOverlap } from './utils.js'
 import { nameRegion } from './naming.js'
 import { expandConceptCluster } from './conceptResolvers.js'
+import { TUNING } from './tuning.js'
 
 // ── Typedefs ──
 
@@ -462,8 +463,9 @@ export function generateArtifacts(graph, world, rng) {
   // ── Budget ──
   const sacrificeEvents = events.filter(e => e.archetype === 'sacrifice')
   const minGuaranteed = 1 + sacrificeEvents.length + regions.length
-  const scaled = 6 + Math.floor(events.length * 0.5) + Math.floor(regions.length * 0.5)
-  const totalCount = Math.max(minGuaranteed, clamp(scaled, 8, 20))
+  const { base, eventFactor, regionFactor } = TUNING.artifactScaleFormula
+  const scaledCount = base + Math.floor(events.length * eventFactor) + Math.floor(regions.length * regionFactor)
+  const totalCount = Math.max(minGuaranteed, clamp(scaledCount, TUNING.artifactCount.min, TUNING.artifactCount.max))
 
   // ── Guaranteed: cosmogony ──
   const cosmo = buildCosmogonyArtifact(graph, rng, world, myth, regions, allLandmarks, materials, usedNames, artifactCounter++)

@@ -23,6 +23,7 @@ import {
   SPREADING_RECIPES,
   applyRecipeBonuses,
 } from './archetypeSelection.js'
+import { TUNING, proportion } from './tuning.js'
 
 // ── Typedefs ──
 
@@ -265,7 +266,8 @@ export function buildCrisis(graph, rng, shape, world, recipe, flawTouchedEvents,
       conceptOverlap(graph, concepts, r.dangers),
   }))
   regionScores.sort((a, b) => b.score - a.score)
-  const affectedRegionIds = regionScores.slice(0, 3)
+  const maxCrisisRegions = proportion(regions.length, TUNING.crisisRegionRatio)
+  const affectedRegionIds = regionScores.slice(0, maxCrisisRegions)
     .filter(r => r.score > 0)
     .map(r => r.id)
 
