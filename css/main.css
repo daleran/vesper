@@ -1362,3 +1362,40 @@ button.small {
   color: var(--text-primary-btn);
 }
 
+/* ── Mobile responsive ── */
+
+@media (max-width: 640px) {
+  .world-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .world-toc-wrapper {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+    border-right: none;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-right: 0;
+    padding-bottom: var(--sp-3);
+    margin-bottom: var(--sp-2);
+  }
+
+  .world-toc {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--sp-1);
+  }
+
+  .toc-link {
+    border-left: none;
+    border-bottom: 2px solid transparent;
+    padding: var(--sp-1) var(--sp-2);
+    white-space: nowrap;
+  }
+
+  .toc-link:hover {
+    border-left-color: transparent;
+    border-bottom-color: var(--border);
+  }
+}
+
