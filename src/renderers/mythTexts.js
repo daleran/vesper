@@ -171,6 +171,7 @@ function cap(s) {
  *   world: World,
  *   artifacts: Artifact[],
  *   gloss: GlossState,
+ *   usedArtifactIds: Set<string>,
  * }} TextCtx
  */
 
@@ -539,21 +540,60 @@ function buildTitle(type, graph, concepts, rng, usedNames, agent, fragmentIndex)
 // ── Artifact scoring ──
 
 /**
- * Find the top N artifacts by concept overlap with a concept list.
- * @param {ConceptGraph} graph
+ * Find the top N artifacts by concept overlap, skipping already-used IDs.
+ * Selected artifacts are added to ctx.usedArtifactIds.
+ * @param {TextCtx} ctx
  * @param {string[]} concepts
- * @param {Artifact[]} artifacts
  * @param {number} n
  * @returns {Artifact[]}
  */
-function findTopArtifacts(graph, concepts, artifacts, n) {
+function findTopArtifacts(ctx, concepts, n) {
+  const { graph, artifacts, usedArtifactIds } = ctx
   if (artifacts.length === 0) return []
-  return artifacts
+  const result = artifacts
+    .filter(a => !usedArtifactIds.has(a.id))
     .map(a => ({ artifact: a, score: conceptOverlap(graph, concepts, a.concepts) }))
     .filter(x => x.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, n)
     .map(x => x.artifact)
+  for (const a of result) usedArtifactIds.add(a.id)
+  return result
+}
+
+// ── Template novelty tracking ──
+
+/** @type {Map<unknown[], Set<number>>} */
+const usedTemplateIndices = new Map()
+
+/**
+ * Pick a template from the array, preferring indices not yet used this world.
+ * Falls back to any template if all have been used.
+ * @template T
+ * @param {() => number} rng
+ * @param {T[]} templates
+ * @returns {T}
+ */
+function pickNovelTemplate(rng, templates) {
+  let used = usedTemplateIndices.get(templates)
+  if (!used) {
+    used = new Set()
+    usedTemplateIndices.set(templates, used)
+  }
+  const unused = []
+  for (let i = 0; i < templates.length; i++) {
+    if (!used.has(i)) unused.push(i)
+  }
+  const idx = unused.length > 0
+    ? unused[Math.floor(rng() * unused.length)]
+    : Math.floor(rng() * templates.length)
+  used.add(idx)
+  return templates[idx]
+}
+
+/** Reset template tracking for a new world generation. */
+function resetTemplateTracking() {
+  usedTemplateIndices.clear()
 }
 
 // ── Builders ──
@@ -566,17 +606,17 @@ let textCounter = 0
  * @returns {MythText}
  */
 function buildHymn(ctx, usedNames) {
-  const { graph, rng, myth, artifacts } = ctx
+  const { graph, rng, myth } = ctx
   const gloss = createGlossState()
   const localCtx = /** @type {TextCtx} */ ({ ...ctx, gloss })
-  const template = pick(rng, HYMN_TEMPLATES)
+  const template = pickNovelTemplate(rng, HYMN_TEMPLATES)
   const body = template(localCtx)
   const concepts = [
     ...(myth.before.concepts.slice(0, 2)),
     ...(myth.act.concepts.slice(0, 2)),
     ...(myth.flaw.concepts.slice(0, 1)),
   ]
-  const topArtifacts = findTopArtifacts(graph, concepts, artifacts, 1)
+  const topArtifacts = findTopArtifacts(ctx, concepts, 1)
   const title = buildTitle('hymn', graph, concepts, rng, usedNames)
   const creatorAgent = findCreatorAgent(ctx.world, graph)
 
@@ -602,17 +642,17 @@ function buildHymn(ctx, usedNames) {
  * @returns {MythText}
  */
 function buildFolk(ctx, usedNames, event, perspective) {
-  const { graph, rng, myth, artifacts } = ctx
+  const { graph, rng, myth } = ctx
   const gloss = createGlossState()
   const localCtx = /** @type {TextCtx} */ ({ ...ctx, gloss })
-  const template = pick(rng, FOLK_TEMPLATES)
+  const template = pickNovelTemplate(rng, FOLK_TEMPLATES)
   const body = template(localCtx, event)
   const concepts = [
     myth.act.concepts[0],
     myth.flaw.concepts[0],
     myth.cost.concepts[0],
   ].filter(Boolean)
-  const topArtifacts = findTopArtifacts(graph, concepts, artifacts, 1)
+  const topArtifacts = findTopArtifacts(ctx, concepts, 1)
   const title = buildTitle('folk', graph, concepts, rng, usedNames)
 
   const creatorAgent = findCreatorAgent(ctx.world, graph)
@@ -639,15 +679,15 @@ function buildFolk(ctx, usedNames, event, perspective) {
  * @returns {MythText}
  */
 function buildHeresy(ctx, usedNames, event) {
-  const { graph, rng, myth, artifacts } = ctx
+  const { graph, rng, myth } = ctx
   const gloss = createGlossState()
   const localCtx = /** @type {TextCtx} */ ({ ...ctx, gloss })
-  const template = pick(rng, HERESY_TEMPLATES)
+  const template = pickNovelTemplate(rng, HERESY_TEMPLATES)
   const body = template(localCtx, event)
   const concepts = event
     ? expandConceptCluster(graph, rng, event.action.concepts[0] ?? myth.flaw.concepts[0] ?? 'void', 2, 4)
     : [myth.flaw.concepts[0], myth.bad[0]].filter(Boolean)
-  const topArtifacts = findTopArtifacts(graph, concepts, artifacts, 1)
+  const topArtifacts = findTopArtifacts(ctx, concepts, 1)
   const title = buildTitle('heresy', graph, concepts, rng, usedNames)
 
   const agentIds = event
@@ -676,15 +716,15 @@ function buildHeresy(ctx, usedNames, event) {
  * @returns {MythText}
  */
 function buildFragment(ctx, usedNames, event, fragmentIndex) {
-  const { graph, rng, myth, artifacts } = ctx
+  const { graph, rng, myth } = ctx
   const gloss = createGlossState()
   const localCtx = /** @type {TextCtx} */ ({ ...ctx, gloss })
-  const template = pick(rng, FRAGMENT_TEMPLATES)
+  const template = pickNovelTemplate(rng, FRAGMENT_TEMPLATES)
   const body = template(localCtx, event)
   const concepts = event
     ? [event.action.concepts[0], event.consequence.concepts[0]].filter(Boolean)
     : [myth.act.concepts[0], myth.cost.concepts[0]].filter(Boolean)
-  const topArtifacts = findTopArtifacts(graph, concepts, artifacts, 2)
+  const topArtifacts = findTopArtifacts(ctx, concepts, 2)
   const title = buildTitle('fragment', graph, concepts, rng, usedNames, undefined, fragmentIndex)
 
   const artifactMention = topArtifacts.length > 0
@@ -710,13 +750,13 @@ function buildFragment(ctx, usedNames, event, fragmentIndex) {
  * @returns {MythText}
  */
 function buildPrayer(ctx, usedNames, agent) {
-  const { graph, rng, artifacts } = ctx
+  const { graph, rng } = ctx
   const gloss = createGlossState()
   const localCtx = /** @type {TextCtx} */ ({ ...ctx, gloss })
-  const template = pick(rng, PRAYER_TEMPLATES)
+  const template = pickNovelTemplate(rng, PRAYER_TEMPLATES)
   const body = template(localCtx, agent)
   const concepts = expandConceptCluster(graph, rng, agent.domains[0] ?? 'void', 2, 4)
-  const topArtifacts = findTopArtifacts(graph, concepts, artifacts, 1)
+  const topArtifacts = findTopArtifacts(ctx, concepts, 1)
   const title = buildTitle('prayer', graph, concepts, rng, usedNames, agent)
 
   return {
@@ -739,13 +779,13 @@ function buildPrayer(ctx, usedNames, agent) {
  * @returns {MythText}
  */
 function buildProphecy(ctx, usedNames) {
-  const { graph, rng, myth, artifacts } = ctx
+  const { graph, rng, myth } = ctx
   const gloss = createGlossState()
   const localCtx = /** @type {TextCtx} */ ({ ...ctx, gloss })
-  const template = pick(rng, PROPHECY_TEMPLATES)
+  const template = pickNovelTemplate(rng, PROPHECY_TEMPLATES)
   const body = template(localCtx)
   const concepts = expandConceptCluster(graph, rng, myth.flaw.concepts[0] ?? 'void', 2, 5)
-  const topArtifacts = findTopArtifacts(graph, concepts, artifacts, 1)
+  const topArtifacts = findTopArtifacts(ctx, concepts, 1)
   const title = buildTitle('prophecy', graph, concepts, rng, usedNames)
 
   return {
@@ -769,17 +809,17 @@ function buildProphecy(ctx, usedNames) {
  * @returns {MythText}
  */
 function buildLament(ctx, usedNames, agent) {
-  const { graph, rng, artifacts } = ctx
+  const { graph, rng } = ctx
   const gloss = createGlossState()
   const localCtx = /** @type {TextCtx} */ ({ ...ctx, gloss })
-  const template = pick(rng, LAMENT_TEMPLATES)
+  const template = pickNovelTemplate(rng, LAMENT_TEMPLATES)
   const body = template(localCtx, agent)
   const concepts = [
     ...agent.domains.slice(0, 2),
     ctx.myth.cost.concepts[0],
     ctx.myth.flaw.concepts[0],
   ].filter(Boolean)
-  const topArtifacts = findTopArtifacts(graph, concepts, artifacts, 1)
+  const topArtifacts = findTopArtifacts(ctx, concepts, 1)
   const title = buildTitle('lament', graph, concepts, rng, usedNames, agent)
 
   return {
@@ -803,13 +843,13 @@ function buildLament(ctx, usedNames, agent) {
  * @returns {MythText}
  */
 function buildParable(ctx, usedNames, event) {
-  const { graph, rng, artifacts } = ctx
+  const { graph, rng } = ctx
   const gloss = createGlossState()
   const localCtx = /** @type {TextCtx} */ ({ ...ctx, gloss })
-  const template = pick(rng, PARABLE_TEMPLATES)
+  const template = pickNovelTemplate(rng, PARABLE_TEMPLATES)
   const body = template(localCtx, event)
   const concepts = expandConceptCluster(graph, rng, event.legacy.concepts[0] ?? event.concepts[0] ?? 'void', 2, 4)
-  const topArtifacts = findTopArtifacts(graph, concepts, artifacts, 1)
+  const topArtifacts = findTopArtifacts(ctx, concepts, 1)
   const title = buildTitle('parable', graph, concepts, rng, usedNames)
 
   const agentIds = event.agentChanges.map(c => c.agentId).filter(id => ctx.world.agents.some(a => a.id === id))
@@ -840,6 +880,7 @@ function buildParable(ctx, usedNames, event) {
  */
 export function generateMythTexts(graph, world, rng) {
   textCounter = 0
+  resetTemplateTracking()
 
   const myth = /** @type {CreationMyth} */ (world.myth)
   const pantheonAgents = world.agents.filter(a => a.origin === 'pantheon')
@@ -849,7 +890,7 @@ export function generateMythTexts(graph, world, rng) {
   const artifacts = world.artifacts ?? []
 
   /** @type {TextCtx} */
-  const ctx = { graph, rng, myth, world, artifacts, gloss: createGlossState() }
+  const ctx = { graph, rng, myth, world, artifacts, gloss: createGlossState(), usedArtifactIds: new Set() }
 
   /** @type {Set<string>} */
   const usedNames = new Set()

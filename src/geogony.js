@@ -340,6 +340,22 @@ function spawnLandscapeAgents(graph, rng, myth, world, ground, water, sky) {
     nameAgents(graph, myth, spawned, rng)
     for (const agent of spawned) {
       agent.pronouns = assignPronouns(agent, rng)
+
+      // Assign disposition from domain evokes edges
+      const evoked = /** @type {string[]} */ ([])
+      for (const domain of agent.domains) {
+        for (const edge of graph.get(domain) ?? []) {
+          if (edge.relation === 'evokes' && edge.direction === 'fwd') {
+            evoked.push(edge.concept)
+          }
+        }
+      }
+      agent.disposition = evoked.length > 0
+        ? pick(rng, evoked)
+        : query(graph).nearby(agent.domains[0], 1).exclude(...agent.domains).get()[0] ?? 'unknowable'
+
+      // Guardian relationship with its originating substance
+      agent.relationships.push({ target: agent.domains[0], kind: 'ward' })
     }
   }
 }

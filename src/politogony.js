@@ -620,13 +620,13 @@ export function generatePolitogony(graph, world, rng) {
         ...event.action.concepts,
         ...event.consequence.concepts,
       ]
-      const emphasized = eventConcepts.filter(c =>
+      const emphasized = [...new Set(eventConcepts.filter(c =>
         polity.concepts.includes(c) ||
         conceptOverlap(graph, [c], polity.concepts) > 0
-      ).slice(0, 3)
+      ))].slice(0, 3)
 
       if (emphasized.length === 0) {
-        emphasized.push(...eventConcepts.slice(0, 2))
+        emphasized.push(...[...new Set(eventConcepts)].slice(0, 2))
       }
 
       legends.push({

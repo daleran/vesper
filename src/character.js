@@ -129,9 +129,8 @@ function selectCreatorGod(graph, rng, world) {
     // Crisis relevance
     score += conceptOverlap(graph, agent.domains, crisisConcepts)
 
-    // Worship and patron bonuses
-    if (agent.worshippedBy.length > 0) score += 1
-    if (agent.patronOf.length > 0) score += 1
+    // Anti-clump: penalize agents already holding many roles
+    score -= agent.worshippedBy.length + agent.patronOf.length
 
     return Math.max(1, score)
   })
@@ -439,7 +438,7 @@ function buildAppearance(graph, rng, concepts) {
     color: ['eyes $', 'hair $', 'skin faintly $'],
     texture: ['hands $', 'skin $'],
     shape: ['build $', 'stance $'],
-    sound: ['$ follows them when they move', '$ in their breathing'],
+    sound: ['$ that follows them when they move', '$ caught in their breathing'],
   }
 
   const details = /** @type {string[]} */ ([])

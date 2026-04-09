@@ -9,7 +9,7 @@
  * @import { Agent } from './pantheon.js'
  * @import { PresentShape } from './presentArchetypes.js'
  */
-import { pick, weightedPick, conceptOverlap } from './utils.js'
+import { pick, weightedPick, conceptOverlap, antiClumpWeight } from './utils.js'
 import { walkFrom } from './walker.js'
 import { nameRegion } from './naming.js'
 import { findAgent, findPolity } from './world.js'
@@ -377,17 +377,20 @@ export function buildFactions(graph, rng, shape, world, crisis, usedNames) {
       if (polity?.religionId) religionSet.add(polity.religionId)
     }
 
-    // Find leader: active patron agent from highest-state polity
+    // Find leader: pick among active patron agents, weighted against clumping
     let leaderAgentId = null
+    const leaderCandidates = []
     for (const pid of polityIds) {
       const polity = polities.find(p => p.id === pid)
       if (polity?.patronAgentId) {
         const agent = findAgent(world, polity.patronAgentId)
         if (agent?.alive && agent.state === 'active') {
-          leaderAgentId = agent.id
-          break
+          leaderCandidates.push(agent)
         }
       }
+    }
+    if (leaderCandidates.length > 0) {
+      leaderAgentId = weightedPick(rng, leaderCandidates, leaderCandidates.map(antiClumpWeight)).id
     }
 
     // Derive strength from member polity states
@@ -774,10 +777,15 @@ export function buildRumors(graph, rng, shape, world, crisis) {
           claim = `${entity.name} ${verb} all ${targetConcept}`
           break
         case 'conflate': {
-          // Merge two entities
+          // Merge two entities — pluralize verb for compound subject
           const other = pool.find(e => e.id !== entity.id)
           if (other) {
-            claim = `${entity.name} and ${other.name} ${verb} ${targetConcept}`
+            const plural = verb.startsWith('has ') ? verb
+              : verb.startsWith('was ') ? verb.replace('was ', 'were ')
+              : verb.startsWith('is ') ? verb.replace('is ', 'are ')
+              : verb.endsWith('s') && !verb.endsWith('ss') ? verb.slice(0, -1)
+              : verb
+            claim = `${entity.name} and ${other.name} ${plural} ${targetConcept}`
           }
           break
         }

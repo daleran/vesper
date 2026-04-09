@@ -10,7 +10,7 @@
  * @import { Landmark } from './geogony.js'
  * @import { People } from './anthropogony.js'
  */
-import { weightedPick, conceptOverlap } from './utils.js'
+import { weightedPick, conceptOverlap, antiClumpWeight } from './utils.js'
 import { walkFrom } from './walker.js'
 import { nameRegion } from './naming.js'
 import { findAgent } from './world.js'
@@ -202,13 +202,17 @@ export function generateHierogony(graph, world, rng) {
       worshippedAgents.push(seed.worshippedAgentId)
     }
 
-    for (const agent of world.agents) {
-      if (worshippedAgents.includes(agent.id)) continue
-      if (worshippedAgents.length >= TUNING.maxWorshippedAgents) break
-      const overlap = conceptOverlap(graph, agent.domains, conceptCluster)
-      if (overlap >= 2) {
-        worshippedAgents.push(agent.id)
-      }
+    // Collect eligible agents and pick by overlap weighted against clumping
+    const eligible = world.agents
+      .filter(a => !worshippedAgents.includes(a.id))
+      .map(a => ({ agent: a, overlap: conceptOverlap(graph, a.domains, conceptCluster) }))
+      .filter(e => e.overlap >= 2)
+
+    while (worshippedAgents.length < TUNING.maxWorshippedAgents && eligible.length > 0) {
+      const weights = eligible.map(e => e.overlap * antiClumpWeight(e.agent))
+      const chosen = weightedPick(rng, eligible, weights)
+      worshippedAgents.push(chosen.agent.id)
+      eligible.splice(eligible.indexOf(chosen), 1)
     }
 
     religions.push({

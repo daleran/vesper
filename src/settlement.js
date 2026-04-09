@@ -11,7 +11,7 @@
  * @import { ChorogonyRegion } from './chorogony.js'
  * @import { People } from './anthropogony.js'
  */
-import { pick, weightedPick } from './utils.js'
+import { pick, weightedPick, antiClumpWeight } from './utils.js'
 import { query } from './query.js'
 import { nameRegion } from './naming.js'
 import { expandConceptCluster, resolveSubstance, resolveShape } from './conceptResolvers.js'
@@ -74,7 +74,7 @@ import { findAgent, findRegion } from './world.js'
  *   religionId: string | null,
  *   concepts: string[],
  *   origin: {
- *     eventIndex: number | null,
+ *     timelineEpoch: number | null,
  *     archetype: string,
  *     founderAgentId: string | null,
  *     summary: string,
@@ -170,11 +170,11 @@ function selectArchetype(rng, world, regionId) {
  * @param {World} world
  * @param {string} regionId
  * @param {() => number} rng
- * @returns {{ agentId: string | null, eventIndex: number | null }}
+ * @returns {{ agentId: string | null, timelineEpoch: number | null }}
  */
 function findFoundingHero(world, regionId, rng) {
   const timeline = world.timeline
-  if (!timeline) return { agentId: null, eventIndex: null }
+  if (!timeline) return { agentId: null, timelineEpoch: null }
 
   // Look for hero-age events with participants in this region
   const candidates = timeline.events.filter(e => {
@@ -192,7 +192,7 @@ function findFoundingHero(world, regionId, rng) {
   if (candidates.length > 0) {
     const evt = pick(rng, candidates)
     const agentId = evt.participants.find(p => p.startsWith('agent-')) ?? null
-    return { agentId, eventIndex: evt.epoch }
+    return { agentId, timelineEpoch: evt.epoch }
   }
 
   // Fallback: any agent that's a patron of a polity controlling this region
@@ -200,13 +200,17 @@ function findFoundingHero(world, regionId, rng) {
   if (region?.controlledBy) {
     const polity = (world.politogony?.polities ?? []).find(p => p.id === region.controlledBy)
     if (polity?.patronAgentId) {
-      return { agentId: polity.patronAgentId, eventIndex: null }
+      return { agentId: polity.patronAgentId, timelineEpoch: null }
     }
   }
 
-  // Last resort: pick any living god
-  const god = world.agents.find(a => a.type === 'god' && a.alive)
-  return { agentId: god?.id ?? null, eventIndex: null }
+  // Last resort: weighted pick among living gods, penalizing over-used agents
+  const livingGods = world.agents.filter(a => a.type === 'god' && a.alive)
+  if (livingGods.length > 0) {
+    const god = weightedPick(rng, livingGods, livingGods.map(antiClumpWeight))
+    return { agentId: god.id, timelineEpoch: null }
+  }
+  return { agentId: null, timelineEpoch: null }
 }
 
 // ── Crop generation ──
@@ -676,8 +680,11 @@ function generateBarSong(graph, rng, world, songSubjectBias, founderAgentId) {
   }
 
   if (!subjectName) {
-    // Fall back to a prominent god
-    const god = world.agents.find(a => a.type === 'god' && a.alive)
+    // Fall back to a god, weighted to avoid over-used agents
+    const livingGods = world.agents.filter(a => a.type === 'god' && a.alive)
+    const god = livingGods.length > 0
+      ? weightedPick(rng, livingGods, livingGods.map(antiClumpWeight))
+      : null
     if (god) {
       subject = 'god'
       subjectId = god.id
@@ -751,7 +758,7 @@ export function generateSettlement(graph, world, rng) {
   const shapeFn = SETTLEMENT_SHAPES[archetype]
   const shape = shapeFn({ graph, rng, myth, world })
 
-  const { agentId: founderAgentId, eventIndex } = findFoundingHero(world, regionId, rng)
+  const { agentId: founderAgentId, timelineEpoch } = findFoundingHero(world, regionId, rng)
   const founderAgent = founderAgentId ? findAgent(world, founderAgentId) : null
 
   const originSummaries = /** @type {Record<string, string>} */ ({
@@ -797,7 +804,7 @@ export function generateSettlement(graph, world, rng) {
 
   // ── Step 8: Generate NPCs ──
   const npcs = generateNPCs(graph, rng, world, villageConcepts, crops, livestock, beverage, {
-    eventIndex, archetype, founderAgentId, summary: originSummaries[archetype],
+    timelineEpoch, archetype, founderAgentId, summary: originSummaries[archetype],
   }, religionId, polityId, world.morphemes)
 
   // ── Step 9: Generate traditions ──
@@ -822,7 +829,7 @@ export function generateSettlement(graph, world, rng) {
     religionId,
     concepts: villageConcepts,
     origin: {
-      eventIndex,
+      timelineEpoch,
       archetype,
       founderAgentId,
       summary: originSummaries[archetype],

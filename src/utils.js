@@ -93,6 +93,16 @@ export function weightedPick(rng, items, weights) {
 }
 
 /**
+ * Selection weight that penalizes agents already holding many roles.
+ * Returns a multiplier in (0, 1] — 0 roles → 1.0, each role halves weight.
+ * @param {{ patronOf: unknown[], worshippedBy: unknown[] }} agent
+ * @returns {number}
+ */
+export function antiClumpWeight(agent) {
+  return 1 / (1 + agent.patronOf.length + agent.worshippedBy.length)
+}
+
+/**
  * Score concept overlap between two sets.
  * Direct match = 2, 1-hop neighbor match = 1.
  * @param {ConceptGraph} graph
